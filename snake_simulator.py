@@ -1,11 +1,12 @@
 import pygame
 import numpy as np
-import copy,time
+
+
 
 snake_unit_width = 8
 snake_unit_length = 10
 snake_dirs = (0,1,2,3) #0 for north, 1 for east, 2 for south, 3 for west
-snake_speed = 0.3*snake_unit_length #I want snake to move half it's length in a time step
+snake_speed = 0.2*snake_unit_length #I want snake to move half it's length in a time step
 
 mouse_size = 15
 mouse_color = (224,224,224)
@@ -21,62 +22,107 @@ player_score = 0
 
 screen = pygame.display.set_mode((screen_width,screen_height))
 
+clock = pygame.time.Clock()
 
 
-class snake:
+
+class snake_unit(pygame.sprite.Sprite):
+    def __init__(self,x,y,width,height ):
+        super().__init__()
+        self.image = pygame.Surface((width,height))
+        self.rect  = self.image.get_rect()
+        self.rect.topleft = (x,y)
+
+
+class snake(pygame.sprite.Sprite):
     def __init__(self,name):
         self.name = name
-        self.unit_length = 10
-        self.unit_width = 8
-        self.x = 120
-        self.y = 350
-        self.speed = 10
-        self.body = []
+        self.unit_length = 14
+        self.unit_width = 7
+        self.speed = 5
+        self.snake_units =  pygame.sprite.Group()
+        self.snake_units_dir = []
 
     def initilize(self):
-        self.body.append({'x':np.random.randint(20,screen_width),
-                          'y':np.random.randint(20,screen_height),
-                          'dir':int(np.random.choice(snake_dirs))})
         
 
+        rand_dir = int(np.random.choice(snake_dirs))
+        self.snake_units_dir.append(rand_dir)
+
+        if rand_dir==0 or rand_dir==2:
 
         
+            self.snake_units.add(snake_unit(np.random.randint(20,screen_width),
+                                        np.random.randint(20,screen_height),
+                                        self.unit_width,
+                                        self.unit_length))
+        else:
+            self.snake_units.add(snake_unit(np.random.randint(20,screen_width),
+                                        np.random.randint(20,screen_height),
+                                        self.unit_length,
+                                        self.unit_width))
+
+        
+        
+        
+
+    def change_dir(self,sprite_element,dir):
+        #it takes the dir and sprite element (probably it's reference to change the width and height accourdingly)
+
+        if dir==0 or dir ==2:
+            sprite_element.image = pygame.transform.scale(sprite_element.image,(self.unit_width,self.unit_length))
+            #sprite_element.rect = sprite_element.image.get_rect(center = sprite_element.rect.center)
+
+        elif dir==1 or dir ==3:
+            sprite_element.image = pygame.transform.scale(sprite_element.image,(self.unit_length,self.unit_width))
+            #sprite_element.rect = sprite_element.image.get_rect(center = sprite_element.rect.center)
+
 
     def move_forward(self):
         #makes the snake move forward
 
         #move the head first
-        prev_head = copy.deepcopy(self.body[0])
+        
+        prev_head_coords = (self.snake_units.sprites()[0].rect.x,self.snake_units.sprites()[0].rect.y)
+        prev_head_dir = self.snake_units_dir[0]
+
         
 
-        if prev_head['dir']==0: #up we go
-            self.body[0]['y'] = (self.body[0]['y']-snake_speed)%screen_height
+        if prev_head_dir==0: #up we go
+            self.snake_units.sprites()[0].rect.y = (self.snake_units.sprites()[0].rect.y-snake_speed)%screen_height
 
-        elif prev_head['dir'] == 1: #right we go
-            self.body[0]['x'] = (self.body[0]['x']+snake_speed)%screen_width
+        elif prev_head_dir == 1: #right we go
+            self.snake_units.sprites()[0].rect.x = (self.snake_units.sprites()[0].rect.x +snake_speed)%screen_width
 
-        elif prev_head['dir'] == 2:
-            self.body[0]['y'] = (self.body[0]['y']+snake_speed)%screen_height
+        elif prev_head_dir == 2:
+            self.snake_units.sprites()[0].rect.y= (self.snake_units.sprites()[0].rect.y +snake_speed)%screen_height
         
-        elif prev_head['dir'] == 3:
-            self.body[0]['x'] = (self.body[0]['x']-snake_speed)%screen_width
+        elif prev_head_dir == 3:
+            self.snake_units.sprites()[0].rect.x = (self.snake_units.sprites()[0].rect.x -snake_speed)%screen_width
 
         else:
             print("die you moron!")
 
         
-        temp_dir = copy.deepcopy(prev_head)
+        temp_coords = prev_head_coords
+        temp_dir = prev_head_dir 
 
-        for i in range(1,len(self.body)):
-            stored_var = copy.deepcopy(self.body[i])
-            
-            self.body[i]['x'] = temp_dir['x']
+        for i in range(1,len(self.snake_units)):
+            stored_coords = (self.snake_units.sprites()[i].rect.x,self.snake_units.sprites()[i].rect.y)
+            stored_dir = self.snake_units_dir[i]
+ 
+            self.snake_units.sprites()[i].rect.x = temp_coords[0]
+            self.snake_units.sprites()[i].rect.y = temp_coords[1]
 
-            
-            self.body[i]['y'] = temp_dir['y']
-            self.body[i]['dir'] = temp_dir['dir']
+            #self.snake_units_dir[i] = temp_dir
+            #self.change_dir(self.snake_units.sprites()[i],temp_dir)
+            if self.snake_units_dir[i]!= temp_dir:
+                
+                self.snake_units_dir[i] = temp_dir
+                self.change_dir(self.snake_units.sprites()[i],temp_dir)
 
-            temp_dir  = copy.deepcopy(stored_var)
+            temp_coords = stored_coords
+            temp_dir = stored_dir
 
         
 
@@ -87,25 +133,63 @@ class snake:
 
     def add_link(self):
         #if snake eats a mouse, we need to add a new link at the end.
-        if self.body[-1]['dir']==0:
-            self.body.append({'x':self.body[-1]['x'],
-                              'y':self.body[-1]['y']+self.unit_length,
-                              'dir':self.body[-1]['dir']})
+        # take care about the coords and also getting the width and height of the unit right.
+        
             
-        elif self.body[-1]['dir']==1:
-            self.body.append({'x':self.body[-1]['x']-self.unit_width,
-                              'y':self.body[-1]['y'],
-                              'dir':self.body[-1]['dir']})
+
+        if self.snake_units_dir[-1]==0:
+            #make a new snake sprite element and also add the dir element
+            self.snake_units.add(snake_unit(
+                self.snake_units.sprites()[-1].rect.x,
+                self.snake_units.sprites()[-1].rect.y + self.unit_length,
+                self.unit_width,
+                self.unit_length
+                
+            ))
+            self.snake_units_dir.append(self.snake_units_dir[-1])
             
-        elif self.body[-1]['dir']==2:
-            self.body.append({'x':self.body[-1]['x'],
-                              'y':self.body[-1]['y']-self.unit_length,
-                              'dir':self.body[-1]['dir']})
+        
+        
             
-        elif self.body[-1]['dir']==3:
-            self.body.append({'x':self.body[-1]['x']+self.unit_width,
-                              'y':self.body[-1]['y'],
-                              'dir':self.body[-1]['dir']})
+        elif self.snake_units_dir[-1]==1:
+            #make a new snake sprite element and also add the dir element
+            self.snake_units.add(snake_unit(
+                self.snake_units.sprites()[-1].rect.x-self.unit_length,
+                self.snake_units.sprites()[-1].rect.y,
+                self.unit_length,
+                self.unit_width
+                
+            ))
+            self.snake_units_dir.append(self.snake_units_dir[-1])
+            
+        
+            
+        elif self.snake_units_dir[-1]==2:
+            #make a new snake sprite element and also add the dir element
+            self.snake_units.add(snake_unit(
+                self.snake_units.sprites()[-1].rect.x,
+                self.snake_units.sprites()[-1].rect.y - self.unit_length,
+                self.unit_width,
+                self.unit_length
+                
+            ))
+            self.snake_units_dir.append(self.snake_units_dir[-1])
+            
+        
+            
+        elif self.snake_units_dir[-1]==3:
+            #make a new snake sprite element and also add the dir element
+            self.snake_units.add(snake_unit(
+                self.snake_units.sprites()[-1].rect.x+self.unit_width,
+                self.snake_units.sprites()[-1].rect.y,
+                self.unit_length,
+                self.unit_width
+                
+            ))
+            self.snake_units_dir.append(self.snake_units_dir[-1])
+
+        else:
+            print(" you are not batman!")
 
 
     def update_snake(self,events):
@@ -118,84 +202,67 @@ class snake:
             if event.type ==pygame.KEYDOWN:
                 if event.key == pygame.K_LEFT:
                     #change direction to left only if the original direction is not left/3...well?
-                    self.body[0]['dir'] = 3
+                    self.snake_units_dir[0] = 3
+                    self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
+                                                                                (self.unit_length,
+                                                                                self.unit_width))
+                    self.snake_units.sprites()[0].rect = self.snake_units.sprites()[0].image.get_rect(
+                        center = self.snake_units.sprites()[0].rect.center
+                    )
+
                     
                 elif event.key == pygame.K_RIGHT:
-                    self.body[0]['dir'] = 1
+                    self.snake_units_dir[0] = 1
+                    self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
+                                                                                (self.unit_length,
+                                                                                self.unit_width))
+                    self.snake_units.sprites()[0].rect = self.snake_units.sprites()[0].image.get_rect(
+                        center = self.snake_units.sprites()[0].rect.center
+                    )
                     
                 elif event.key == pygame.K_UP:
-                    self.body[0]['dir'] = 0
+                    self.snake_units_dir[0] = 0
+                    self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
+                                                                                (self.unit_width,
+                                                                                self.unit_length))
+                    self.snake_units.sprites()[0].rect = self.snake_units.sprites()[0].image.get_rect(
+                        center = self.snake_units.sprites()[0].rect.center
+                    )
                     
                 elif event.key == pygame.K_DOWN:
-                    self.body[0]['dir'] = 2
+                    self.snake_units_dir[0] = 2
+                    self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
+                                                                                (self.unit_width,
+                                                                                self.unit_length))
+                    self.snake_units.sprites()[0].rect = self.snake_units.sprites()[0].image.get_rect(
+                        center = self.snake_units.sprites()[0].rect.center
+                    )
                    
                 else:
                     return
-            else:
-                return
+            
 
         self.move_forward()
-        self.x = self.body[0]['x']
-        self.y = self.body[0]['y']
-        
-
-
 
         
-def render_snake(snake,screen,snake_color):
-
-
-    for body_unit in snake.body:
-
-        if body_unit['dir']==0 or body_unit['dir']==2:
-            
-
-            pygame.draw.rect(screen,snake_color,
-                             (body_unit['x'],body_unit['y'],snake.unit_width,snake.unit_length))
-            
-        elif body_unit['dir']==1 or body_unit['dir']==3:
-
-
-            pygame.draw.rect(screen,snake_color,
-                             (body_unit['x'],body_unit['y'],snake.unit_length,snake.unit_width))
-
-
-    
-def render_mouse(mouse,screen,mouse_color):
-    pygame.draw.rect(screen,
-                     mouse_color,
-                     (mouse.x,
-                     mouse.y,
-                     mouse.size,
-                     mouse.size
-                     ))
 
 
 
+class mouse(pygame.sprite.Sprite):
+    def __init__(self,pos):
+        super().__init__()
+        self.image = pygame.Surface((mouse_size,mouse_size))
+        self.rect = self.image.get_rect(center = pos)
+
+def get_mouse():
+    pos = (np.random.randint(20,screen_width-20),np.random.randint(20,screen_height-20))
+    return mouse(pos)
 
 
-class mouse:
-    def __init__(self,name):
-        self.size = 15
-        self.name = name
-
-
-    def initialize(self):
-        self.x = np.random.randint(10,screen_width-10)
-        self.y = np.random.randint(10,screen_height-10)
+                                        
 
     
 
-def detect_touch(objectA,objectB):
-    #for now, just snake and mouse
-    
-
-    dist = int(np.sqrt((objectA.x-objectB.x)**2 + (objectA.y - objectB.y)**2))
-
-    if dist<collision_threshold:
-        #there is a collision
-        return True
-    return False
 
 
 
@@ -210,55 +277,75 @@ text_color = (255, 255, 255) # White
 
 snake1 = snake("Carl")
 snake1.initilize()
-mouse1 = mouse("katniss")
-mouse1.initialize()
+mousie = get_mouse()
+all_sprites = pygame.sprite.Group(snake1.snake_units,mousie)
 
 running = True
+pause = False
 while running:
+    
 
+    #revise the events logic later on
     events = pygame.event.get()
     for event in events:
         if event.type == pygame.QUIT:
             running = False
+        if event.type ==pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                pause = not pause
+
 
         
     screen.fill(screen_bg)
 
     
-    render_snake(snake1,screen,snake_color)
-    render_mouse(mouse1,screen,mouse_color)
+
+
+
+    
+
+
+    #draw
 
     #pygame.draw.rect(screen,(100,10,10),(screen_width/2,screen_height/2,snake_unit_width,snake_unit_length))
     text_surface = font.render(f'Player score is: {player_score}', True, text_color)
     text_rect = text_surface.get_rect(center=(screen_width- 70, 10))
     screen.blit(text_surface, text_rect)
-    
-    
-    pygame.display.update()
-    snake1.update_snake(events)
 
-    if detect_touch(snake1,mouse1):
+    all_sprites.draw(screen)
+    
+    if pause:
+        text_surface = font.render(f'Pause!', True, text_color)
+        text_rect = text_surface.get_rect(center=(screen_width//2, screen_height//2))
+        screen.blit(text_surface, text_rect)
+        pygame.display.flip()
+        continue
+    
+    
+    
+    #snake1.snake_units.draw(screen)
+
+    #collision detection
+    hit_list = pygame.sprite.spritecollide(mousie,snake1.snake_units,dokill=False)
+    if hit_list:
         snake1.add_link()
         player_score+=1
-        mouse1.initialize()
-        print("player score is: ",player_score)
+        mousie.kill() #kill the mouse
+        mousie = get_mouse() #gets us new mouse and assigns it to the using mousie var
+        all_sprites = pygame.sprite.Group(snake1.snake_units,mousie)
+        print("player score is : ",player_score)
+
+    #update
+
+    #pygame.display.update()
+    snake1.update_snake(events)
+
 
     
-    #pygame.display.flip()
-    '''num = np.random.randint(0,2000)
-    if num<30:
-        snake1.add_link()'''
+    pygame.display.flip()
     
-    time.sleep(0.02)
+    clock.tick(60) #limit to 60 fps
     
-
-
-    #snake1.move_forward() #handles the keypress ,direction change and moving forward
-
-
-
-
-
 
 pygame.quit()
 

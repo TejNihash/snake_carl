@@ -1,11 +1,14 @@
 import numpy as np
 import pygame
+import random
 
 
 #declaring the variables that are needed to make the maze
 screen_width = 800
 screen_height = 600
+screen_bg = (10,120,30)
 
+wall_color = (30,15,150)
 wall_lengths = (50,70,90)
 wall_width = 10
 directions = ("H","V")
@@ -16,40 +19,44 @@ division_ratio = 1 # experimental, change it later on
 division_length = int(max(wall_lengths)/division_ratio) # so that we have maximum walls fit in
 
 
+class maze_wall(pygame.sprite.Sprite):
+    def __init__(self, x,y,width,height):
+        super().__init__()
+        self.image = pygame.Surface((width,height))
+        self.rect  = self.image.get_rect()
+        self.rect.topleft = (x,y)
 
-def create_maze_states(screen_width,screen_height,wall_width,wall_lengths,directions,division_length):
+
+
+def create_maze_sprites(screen_width,screen_height,division_length):
     #returns a list of dictionary of maze walls with their coords and the angles. so, (x,y,wall_width,wall_length,direction)
-    walls = []
+    wall_sprites_list = []
+
+    available_walls = ((70,10),(90,10),(50,10),(10,50),(10,70),(10,90))
 
     np.random.seed(43) #to control the randomness lol
     
     for i in range(int(screen_width/division_length)+1):
         for j in range(int(screen_height/division_length)+1):
-            walls.append({'x':i*division_length,
-                          'y':j*division_length,
-                          'w':wall_width,
-                          'h':np.random.choice(wall_lengths),
-                          'dir':np.random.choice(directions)
-                          })
+
+            wall = random.choice(available_walls)
+
+
+            wall_sprites_list.append(maze_wall(i*division_length,j*division_length,wall[0],wall[1]))
             
-    return walls
+    return wall_sprites_list
 
 
-def draw_walls(screen,wall_color,walls):
-    #takes in the walls and draws them
-    for wall in walls:
-        if wall['dir']=='H':
-            pygame.draw.rect(screen,wall_color,(wall['x'],
-                                        wall['y'],
-                                        wall['w'],
-                                        wall['h']
-                                        ))
-        else:
-            pygame.draw.rect(screen,wall_color,(wall['x'],
-                                        wall['y'],
-                                        wall['h'],
-                                        wall['w']
-                                        ))
+all_sprites_group = pygame.sprite.Group()
+wall_sprites_group = pygame.sprite.Group()
+
+
+#create a bunch of sprites and add them to the wall_sprites group for now
+
+wall_sprites_list = create_maze_sprites(screen_width,screen_height,division_length)
+
+for wall in wall_sprites_list:
+    wall_sprites_group.add(wall)
 
             
 
@@ -59,11 +66,8 @@ def draw_walls(screen,wall_color,walls):
 pygame.init()
 
 screen = pygame.display.set_mode((screen_width,screen_height))
-screen_bg = (10,120,30)
-wall_color = (30,15,150)
 
 
-maze_states  = create_maze_states(screen_width,screen_height,wall_width,wall_lengths,directions,division_length)
 
 
 #game logic
@@ -77,8 +81,8 @@ while running:
 
         
     screen.fill(screen_bg)
+    wall_sprites_group.draw(screen)
 
-    draw_walls(screen,wall_color,maze_states)
     
     pygame.display.update()
 
