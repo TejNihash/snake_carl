@@ -1,5 +1,6 @@
 import pygame
 import numpy as np
+import random
 
 
 
@@ -16,6 +17,14 @@ screen_bg = (10,60,22)
 screen_height = 600
 screen_width = 800
 
+wall_color = (30,15,150)
+wall_lengths = (50,70,90)
+wall_width = 10
+directions = ("H","V")
+division_ratio = 1 # experimental, change it later on
+division_length = int(max(wall_lengths)/division_ratio) # so that we have maximum walls fit in
+
+
 collision_threshold = 10
 
 player_score = 0
@@ -30,6 +39,7 @@ class snake_unit(pygame.sprite.Sprite):
     def __init__(self,x,y,width,height ):
         super().__init__()
         self.image = pygame.Surface((width,height))
+        self.image.fill(snake_color)
         self.rect  = self.image.get_rect()
         self.rect.topleft = (x,y)
 
@@ -37,7 +47,7 @@ class snake_unit(pygame.sprite.Sprite):
 class snake(pygame.sprite.Sprite):
     def __init__(self,name):
         self.name = name
-        self.unit_length = 14
+        self.unit_length = 7
         self.unit_width = 7
         self.speed = 5
         self.snake_units =  pygame.sprite.Group()
@@ -62,9 +72,6 @@ class snake(pygame.sprite.Sprite):
                                         self.unit_length,
                                         self.unit_width))
 
-        
-        
-        
 
     def change_dir(self,sprite_element,dir):
         #it takes the dir and sprite element (probably it's reference to change the width and height accourdingly)
@@ -246,12 +253,13 @@ class snake(pygame.sprite.Sprite):
 
         
 
-
+#about mouse
 
 class mouse(pygame.sprite.Sprite):
     def __init__(self,pos):
         super().__init__()
         self.image = pygame.Surface((mouse_size,mouse_size))
+        self.image.fill((mouse_color))
         self.rect = self.image.get_rect(center = pos)
 
 def get_mouse():
@@ -259,11 +267,34 @@ def get_mouse():
     return mouse(pos)
 
 
-                                        
+#related to walls/maze
 
+class maze_wall(pygame.sprite.Sprite):
+    def __init__(self, x,y,width,height):
+        super().__init__()
+        self.image = pygame.Surface((width,height))
+        self.rect  = self.image.get_rect()
+        self.rect.topleft = (x,y)
+
+
+
+def create_maze_sprites(screen_width,screen_height,division_length):
+    #returns a list of dictionary of maze walls with their coords and the angles. so, (x,y,wall_width,wall_length,direction)
+    wall_sprites_list = []
+
+    available_walls = ((70,10),(90,10),(50,10),(10,50),(10,70),(10,90))
+
+    np.random.seed(43) #to control the randomness lol
     
+    for i in range(int(screen_width/division_length)+1):
+        for j in range(int(screen_height/division_length)+1):
+
+            wall = random.choice(available_walls)
 
 
+            wall_sprites_list.append(maze_wall(i*division_length,j*division_length,wall[0],wall[1]))
+            
+    return wall_sprites_list
 
 
 pygame.init()
@@ -278,10 +309,19 @@ text_color = (255, 255, 255) # White
 snake1 = snake("Carl")
 snake1.initilize()
 mousie = get_mouse()
-all_sprites = pygame.sprite.Group(snake1.snake_units,mousie)
+wall_sprites_group = pygame.sprite.Group()
+#create a bunch of sprites and add them to the wall_sprites group for now
+
+wall_sprites_list = create_maze_sprites(screen_width,screen_height,division_length)
+
+for wall in wall_sprites_list:
+    wall_sprites_group.add(wall)
+
+all_sprites = pygame.sprite.Group(snake1.snake_units,mousie,wall_sprites_group)
 
 running = True
 pause = False
+game_over = False
 while running:
     
 
@@ -306,13 +346,14 @@ while running:
 
 
     #draw
+    all_sprites.draw(screen)
 
     #pygame.draw.rect(screen,(100,10,10),(screen_width/2,screen_height/2,snake_unit_width,snake_unit_length))
     text_surface = font.render(f'Player score is: {player_score}', True, text_color)
     text_rect = text_surface.get_rect(center=(screen_width- 70, 10))
     screen.blit(text_surface, text_rect)
 
-    all_sprites.draw(screen)
+    
     
     if pause:
         text_surface = font.render(f'Pause!', True, text_color)
@@ -325,15 +366,36 @@ while running:
     
     #snake1.snake_units.draw(screen)
 
-    #collision detection
+    #collision detection for mouse and walls, so that we can get another mouse
+    hit_list0 = pygame.sprite.spritecollide(mousie,wall_sprites_group,dokill=False)
+    if hit_list0:
+    
+        mousie.kill() #kill the mouse
+        mousie = get_mouse()
+        all_sprites = pygame.sprite.Group(snake1.snake_units,mousie,wall_sprites_group)
+        continue #so that we don't all the later stuff, just so we do it from here again.
+
+    #collision detection for mouse and snake
     hit_list = pygame.sprite.spritecollide(mousie,snake1.snake_units,dokill=False)
     if hit_list:
         snake1.add_link()
         player_score+=1
         mousie.kill() #kill the mouse
         mousie = get_mouse() #gets us new mouse and assigns it to the using mousie var
-        all_sprites = pygame.sprite.Group(snake1.snake_units,mousie)
+        all_sprites = pygame.sprite.Group(snake1.snake_units,mousie,wall_sprites_group)
         print("player score is : ",player_score)
+
+    #collision detection for snake...head and walls
+    hit_list1 = pygame.sprite.spritecollide(snake1.snake_units.sprites()[0],wall_sprites_group,dokill=False)
+    if hit_list1 or game_over:
+        game_over = True
+        #well, game over... so just pause there and show that game is over
+        
+        text_surface = font.render(f'Game over!', True, text_color)
+        text_rect = text_surface.get_rect(center=(screen_width//2, screen_height//2))
+        screen.blit(text_surface, text_rect)
+        pygame.display.flip()
+        continue
 
     #update
 

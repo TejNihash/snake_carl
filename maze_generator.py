@@ -12,10 +12,7 @@ wall_color = (30,15,150)
 wall_lengths = (50,70,90)
 wall_width = 10
 directions = ("H","V")
-
 division_ratio = 1 # experimental, change it later on
-
-
 division_length = int(max(wall_lengths)/division_ratio) # so that we have maximum walls fit in
 
 
