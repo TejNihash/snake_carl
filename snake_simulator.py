@@ -1,7 +1,11 @@
 import pygame
 import numpy as np
 import random
+import time
 
+import matplotlib.pyplot as plt
+from collections import deque
+import cv2
 
 
 snake_unit_width = 8
@@ -9,15 +13,15 @@ snake_unit_length = 10
 snake_dirs = (0,1,2,3) #0 for north, 1 for east, 2 for south, 3 for west
 snake_speed = 0.2*snake_unit_length #I want snake to move half it's length in a time step
 
-mouse_size = 15
-mouse_color = (224,224,224)
+mouse_size = (16,16)
+mouse_color = (230,230,31)
 
 snake_color = (204,20,20)
-screen_bg = (10,60,22)
+screen_bg = (10,20,150)
 screen_height = 600
 screen_width = 800
 
-wall_color = (30,15,150)
+wall_color = (20,20,20)
 wall_lengths = (50,70,90)
 wall_width = 10
 directions = ("H","V")
@@ -47,8 +51,8 @@ class snake_unit(pygame.sprite.Sprite):
 class snake(pygame.sprite.Sprite):
     def __init__(self,name):
         self.name = name
-        self.unit_length = 7
-        self.unit_width = 7
+        self.unit_length = snake_unit_length
+        self.unit_width = snake_unit_width
         self.speed = 5
         self.snake_units =  pygame.sprite.Group()
         self.snake_units_dir = []
@@ -258,7 +262,7 @@ class snake(pygame.sprite.Sprite):
 class mouse(pygame.sprite.Sprite):
     def __init__(self,pos):
         super().__init__()
-        self.image = pygame.Surface((mouse_size,mouse_size))
+        self.image = pygame.Surface(mouse_size)
         self.image.fill((mouse_color))
         self.rect = self.image.get_rect(center = pos)
 
@@ -273,6 +277,7 @@ class maze_wall(pygame.sprite.Sprite):
     def __init__(self, x,y,width,height):
         super().__init__()
         self.image = pygame.Surface((width,height))
+        self.image.fill(wall_color)
         self.rect  = self.image.get_rect()
         self.rect.topleft = (x,y)
 
@@ -295,6 +300,80 @@ def create_maze_sprites(screen_width,screen_height,division_length):
             wall_sprites_list.append(maze_wall(i*division_length,j*division_length,wall[0],wall[1]))
             
     return wall_sprites_list
+
+
+# let's addd the image capturing and preprocessing here.
+
+
+def get_pygame_frame(screen):
+    """
+    capture the current displayed screen as numpy array
+    
+    """
+    frame = pygame.surfarray.array3d(screen) # has shape (W,H,3)
+    frame = np.transpose(frame,(1,0,2))  #has a shape of (H,W,3)
+
+    return frame
+
+
+def preprocess_frame(frame,shape = (80,60)):
+    #take in a frame of pygame convert it to grey scale and resize it. 
+    gray = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)   #shape : (H,W)
+    
+    binary = dominant_binarize(gray)
+
+
+    resized = cv2.resize(binary,shape,cv2.INTER_NEAREST)
+    
+
+
+    return dominant_binarize(resized)
+
+
+def dominant_binarize(gray_img):
+    # Step 1: Flatten and count unique values
+    values, counts = np.unique(gray_img, return_counts=True)
+    dominant_value = values[np.argmax(counts)]
+
+    # Step 2: Create binary mask
+    binary = np.where(gray_img == dominant_value, 0, 255).astype(np.uint8)
+    return binary
+
+
+
+
+class frame_stack:
+    def __init__(self,k):
+        self.k = k
+        self.state_stack = deque([],maxlen=k)
+
+    def reset(self):
+        #sets the stack to zero
+
+        self.state_stack.clear()
+ 
+        return np.concatenate(self.state_stack,axis = 0) # we will have k,h,w dimensional array
+
+    def step(self,new_frame):
+        #adds the new frame to the stack and returns the stack in concatenated way
+
+        processed_frame = preprocess_frame(new_frame)
+        self.state_stack.append(processed_frame)
+        return np.stack(self.state_stack,axis = 0)  # gets me the shape of (4,84,84)
+        
+    def __len__(self):
+        return self.k
+        
+
+def show_gray_scale_image(img):
+    plt.imshow(img,cmap='gray',interpolation='nearest')
+    plt.axis('off')
+    plt.show()
+
+
+
+frame_states = frame_stack(100)
+
 
 
 pygame.init()
@@ -348,10 +427,7 @@ while running:
     #draw
     all_sprites.draw(screen)
 
-    #pygame.draw.rect(screen,(100,10,10),(screen_width/2,screen_height/2,snake_unit_width,snake_unit_length))
-    text_surface = font.render(f'Player score is: {player_score}', True, text_color)
-    text_rect = text_surface.get_rect(center=(screen_width- 70, 10))
-    screen.blit(text_surface, text_rect)
+    
 
     
     
@@ -405,8 +481,28 @@ while running:
 
     
     pygame.display.flip()
+
+    frame  = get_pygame_frame(screen)
+    frame_states.step(frame)
+
+    '''#pygame.draw.rect(screen,(100,10,10),(screen_width/2,screen_height/2,snake_unit_width,snake_unit_length))
+    text_surface = font.render(f'Player score is: {player_score}', True, text_color)
+    text_rect = text_surface.get_rect(center=(screen_width- 70, 10))
+    screen.blit(text_surface, text_rect)
+    pygame.display.update()'''  #we'll add the scoring mechanism later on. for now, just look at it at the bottom of cmd line
+
+    
     
     clock.tick(60) #limit to 60 fps
+
+print(len(frame_states.state_stack))
+unique = np.unique(frame_states.state_stack[-1])
+print(unique)
+
+
+show_gray_scale_image(frame_states.state_stack[-1])
+
+
     
 
 pygame.quit()

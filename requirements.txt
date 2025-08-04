@@ -1,2 +1,7 @@
 pygame
 numpy
+gymnasium
+torch
+opencv-python
+matplotlib
+
