@@ -25,14 +25,14 @@ snake_dirs = (0,1,2,3) #0 for north, 1 for east, 2 for south, 3 for west
 snake_speed = 0.2*snake_unit_length #I want snake to move half it's length in a time step
 
 mouse_size = (16,16)
-mouse_color = (230,230,31)
+mouse_color = (50,50,50)
 
-snake_color = (204,20,20)
-screen_bg = (10,20,150)
+snake_color = (250,250,230)
+screen_bg = (10,20,15)
 screen_height = 600
 screen_width = 800
 
-wall_color = (20,20,20)
+wall_color = (50,50,50)
 wall_lengths = (50,70,90)
 wall_width = 10
 directions = ("H","V")
@@ -77,10 +77,10 @@ def preprocess_frame(frame,shape = (80,60)):
     #take in a frame of pygame convert it to grey scale and resize it. 
     gray = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)   #shape : (H,W)
     
-    binary = dominant_binarize(gray)
+    #binary = dominant_binarize(gray)
 
-    resized = cv2.resize(binary,shape,cv2.INTER_NEAREST)
-
+    resized = cv2.resize(gray,shape,cv2.INTER_NEAREST)
+    return resized
     return dominant_binarize(resized)
 
 
@@ -125,6 +125,29 @@ def show_gray_scale_image(img):
     plt.axis('off')
     plt.show()
 
+import matplotlib.pyplot as plt
+
+def show_gray_scale_images(imgs):
+    """
+    Display up to 4 grayscale images side by side.
+    imgs: list or tuple of 4 images (H x W) or (1 x H x W) tensors or numpy arrays
+    """
+    plt.figure(figsize=(12, 3))  # Wider figure for side-by-side display
+
+    for i in range(4):
+        plt.subplot(1, 4, i + 1)
+        img = imgs[i]
+
+        # Handle torch tensor (convert to numpy)
+        if hasattr(img, 'numpy'):
+            img = img.squeeze().numpy()  # Remove batch/channel dims if needed
+
+        plt.imshow(img, cmap='gray', interpolation='nearest')
+        plt.axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
 
 #game class
 class snake_game:
@@ -149,12 +172,17 @@ class snake_game:
             wall_sprites_group.add(wall)
         
         return wall_sprites_group
+    
+
+
 
     def initialize(self):
         self.snake = snake("carl")
         self.snake.initilize() #snake needs it's initilization right?
 
         self.wall_sprites_group = self.create_wall_sprites()
+
+        
         
 
         proper = False
@@ -191,7 +219,7 @@ class snake_game:
 
 
 
-    def reset(self,maze_new = True):
+    def reset(self,maze_new = True,no_of_mouse = 20):
         self.pause = False
         self.running = True
         self.game_over = False
@@ -201,7 +229,35 @@ class snake_game:
 
         if maze_new:  #make it a new maze only if it is needed.
             self.wall_sprites_group = self.create_wall_sprites()
-        proper = False
+
+        self.mouse_sprites_group =pygame.sprite.Group()
+
+        
+
+        for i in range(no_of_mouse):
+            proper = False 
+
+            while not proper:
+                new_mouse = get_mouse()
+                hit_list0 = pygame.sprite.spritecollide(new_mouse,self.wall_sprites_group,dokill=False)
+                if hit_list0:
+                    new_mouse.kill()
+                    print("mouse spawned under a wall")
+                    continue
+                #if new mouse is indeed good, then add to the mouse group
+                proper = True
+                self.mouse_sprites_group.add(new_mouse)
+        
+        self.all_sprites = pygame.sprite.Group(self.snake.snake_units,self.mouse_sprites_group,self.wall_sprites_group)
+        pygame.display.flip()
+
+        frame  = get_pygame_frame(screen)
+        for _ in range(self.k):
+            self.states.add(frame)
+
+        proper = True
+
+        return np.stack(self.states.state_stack,axis=0)
 
         while not proper:
             #loop over till we get a proper mouse and snake at initial position, we don't want them dead to begin with.for now, just mousie
@@ -222,13 +278,7 @@ class snake_game:
 
             self.all_sprites = pygame.sprite.Group(self.snake.snake_units,self.mousie,self.wall_sprites_group)
 
-            frame  = get_pygame_frame(screen)
-            for _ in range(self.k):
-                self.states.add(frame)
 
-            proper = True
-
-            return np.stack(self.states.state_stack,axis=0)
 
             
 
@@ -237,7 +287,7 @@ class snake_game:
     def step(self,action):
             
         executed = False
-        reward = 0
+        reward = 1
 
         while not executed and not self.game_over:
 
@@ -261,6 +311,12 @@ class snake_game:
             #draw
             self.all_sprites.draw(screen)
 
+            pygame.display.update()
+            pygame.display.flip()
+
+
+            #we check for shit
+
             if self.pause:
                 text_surface = font.render(f'Pause!', True, text_color)
                 text_rect = text_surface.get_rect(center=(screen_width//2, screen_height//2))
@@ -271,21 +327,35 @@ class snake_game:
 
 
             #collision detection for mouse and snake
-            hit_list = pygame.sprite.spritecollide(self.mousie,self.snake.snake_units,dokill=False)
+            hit_list = pygame.sprite.groupcollide(self.mouse_sprites_group,self.snake.snake_units,dokilla=True,dokillb=False)
             if hit_list:
                 self.snake.add_link()
                 self.player_score+=1
                 reward =3
-                self.mousie.kill() #kill the mouse
-                self.mousie = get_mouse() #gets us new mouse and assigns it to the using mousie var
-                self.all_sprites = pygame.sprite.Group(self.snake.snake_units,self.mousie,self.wall_sprites_group)
+                
+
+                proper = False
+                while not proper:
+                    new_mouse = get_mouse()
+                    hit_list = pygame.sprite.spritecollide(new_mouse,self.all_sprites,False)
+                    if hit_list:
+                        new_mouse.kill()
+                        print("bad respawn")
+                        continue
+                    proper = True
+                    self.mouse_sprites_group.add(new_mouse)
+
+                '''self.mousie.kill() #kill the mouse
+                self.mousie = get_mouse() #gets us new mouse and assigns it to the using mousie var'''
+
+                self.all_sprites = pygame.sprite.Group(self.snake.snake_units,self.mouse_sprites_group,self.wall_sprites_group)
                 print("player score is : ",self.player_score)
                 
 
             #collision detection for snakehead and walls
             hit_list1 = pygame.sprite.spritecollide(self.snake.snake_units.sprites()[0],self.wall_sprites_group,dokill=False)
             if hit_list1 :
-                reward = -3
+                reward = -15
                 self.game_over = True
                 
 
@@ -302,11 +372,7 @@ class snake_game:
 
             #pygame.display.update()
             
-            pygame.display.update()
 
-
-
-            pygame.display.flip()
             
 
             executed = True
@@ -316,7 +382,16 @@ class snake_game:
         return  next_frame,reward,self.game_over
 
 
-
+def plot_rewards(rewards):
+    plt.figure(figsize=(10, 5))
+    plt.plot(rewards, label='Total Reward per Episode')
+    plt.xlabel('Episode')
+    plt.ylabel('Total Reward')
+    plt.title('Training Progress')
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
             
 
         
@@ -397,7 +472,7 @@ pause = False
 game_over = False
 
 game1 = snake_game()
-frame_states,done = game1.initialize()  #self.states is returned which is a deque stack
+frame_states = game1.reset(maze_new=True)  #self.states is returned which is a deque stack
 
 
 state_dim = frame_states.shape 
@@ -443,6 +518,7 @@ def select_action(state, epsilon):
 
 
 num_episodes = 500
+episode_rewards = []
 
 for episode in range(num_episodes):
     frame_state = game1.reset(maze_new=False)
@@ -459,6 +535,7 @@ for episode in range(num_episodes):
         if len(buffer) >= batch_size: #this is the only time
             states, actions, rewards, next_states, dones = buffer.sample(batch_size)
             
+            
             # Compute current Q values
             q_values = q_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)
             
@@ -471,6 +548,7 @@ for episode in range(num_episodes):
             
             optimizer.zero_grad()
             loss.backward()
+            
             optimizer.step()
 
         if done:
@@ -479,12 +557,34 @@ for episode in range(num_episodes):
 
     # Update epsilon
     epsilon = max(epsilon_min, epsilon * epsilon_decay)
+    if epsilon<= epsilon_min:
+        epsilon = 0.3
 
     # Update target network
     if episode % target_update_freq == 0:
         target_net.load_state_dict(q_net.state_dict())
 
+    episode_rewards.append(total_reward)
+
     print(f"Episode {episode}, Total reward: {total_reward}, Epsilon: {epsilon:.3f}")
+
+plot_rewards(episode_rewards)
+
+torch.save(q_net.state_dict(), "q_net_mark1.pth")
+
+print("brooo",len(frame_state))
+#print(frame_state[-1]/255.0)
+unique = np.unique(frame_state[0]/255.0)
+print(unique)
+
+
+
+print("shape of the frame_state",frame_state.shape)
+'''show_gray_scale_images(frame_state)
+show_gray_scale_image(frame_state[1])
+show_gray_scale_image(frame_state[2])
+show_gray_scale_image(frame_state[3])'''
+show_gray_scale_images(frame_state)
 
 
 
