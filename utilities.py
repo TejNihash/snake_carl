@@ -198,54 +198,51 @@ class snake(pygame.sprite.Sprite):
             print(" you are not batman!")
 
 
-    def update_snake(self,events):
+    def update_snake(self,action):
 
         #check for key press
 
-        for event in events:
-            if event.type == pygame.QUIT:
-                pygame.quit()
-            if event.type ==pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT:
-                    #change direction to left only if the original direction is not left/3...well?
-                    self.snake_units_dir[0] = 3
-                    self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
-                                                                                (self.unit_length,
-                                                                                self.unit_width))
-                    self.snake_units.sprites()[0].rect = self.snake_units.sprites()[0].image.get_rect(
-                        center = self.snake_units.sprites()[0].rect.center
-                    )
+       
+        if action==3:
+            #change direction to left only if the original direction is not left/3...well?
+            self.snake_units_dir[0] = 3
+            self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
+                                                                        (self.unit_length,
+                                                                        self.unit_width))
+            self.snake_units.sprites()[0].rect = self.snake_units.sprites()[0].image.get_rect(
+                center = self.snake_units.sprites()[0].rect.center
+            )
 
-                    
-                elif event.key == pygame.K_RIGHT:
-                    self.snake_units_dir[0] = 1
-                    self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
-                                                                                (self.unit_length,
-                                                                                self.unit_width))
-                    self.snake_units.sprites()[0].rect = self.snake_units.sprites()[0].image.get_rect(
-                        center = self.snake_units.sprites()[0].rect.center
-                    )
-                    
-                elif event.key == pygame.K_UP:
-                    self.snake_units_dir[0] = 0
-                    self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
-                                                                                (self.unit_width,
-                                                                                self.unit_length))
-                    self.snake_units.sprites()[0].rect = self.snake_units.sprites()[0].image.get_rect(
-                        center = self.snake_units.sprites()[0].rect.center
-                    )
-                    
-                elif event.key == pygame.K_DOWN:
-                    self.snake_units_dir[0] = 2
-                    self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
-                                                                                (self.unit_width,
-                                                                                self.unit_length))
-                    self.snake_units.sprites()[0].rect = self.snake_units.sprites()[0].image.get_rect(
-                        center = self.snake_units.sprites()[0].rect.center
-                    )
-                   
-                else:
-                    return
+            
+        elif action==1:
+            self.snake_units_dir[0] = 1
+            self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
+                                                                        (self.unit_length,
+                                                                        self.unit_width))
+            self.snake_units.sprites()[0].rect = self.snake_units.sprites()[0].image.get_rect(
+                center = self.snake_units.sprites()[0].rect.center
+            )
+            
+        elif action==0:
+            self.snake_units_dir[0] = 0
+            self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
+                                                                        (self.unit_width,
+                                                                        self.unit_length))
+            self.snake_units.sprites()[0].rect = self.snake_units.sprites()[0].image.get_rect(
+                center = self.snake_units.sprites()[0].rect.center
+            )
+            
+        elif action==2:
+            self.snake_units_dir[0] = 2
+            self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
+                                                                        (self.unit_width,
+                                                                        self.unit_length))
+            self.snake_units.sprites()[0].rect = self.snake_units.sprites()[0].image.get_rect(
+                center = self.snake_units.sprites()[0].rect.center
+            )
+            
+        else:
+            return
             
 
         self.move_forward()

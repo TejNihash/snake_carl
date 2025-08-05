@@ -27,7 +27,9 @@ class CNN_DQN(nn.Module):
         self.fc = nn.Sequential(
             nn.Linear(64 * 7 * 7, 512),
             nn.ReLU(),
-            nn.Linear(512, num_actions)
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Linear(256,num_actions)
         )
 
     def forward(self, x):
@@ -76,6 +78,8 @@ epsilon = 1.0
 epsilon_decay = 0.995
 epsilon_min = 0.01
 target_update_freq = 10
+
+
 
 def select_action(state, epsilon):
     if random.random() < epsilon:
@@ -128,3 +132,13 @@ for episode in range(num_episodes):
         target_net.load_state_dict(q_net.state_dict())
 
     print(f"Episode {episode}, Total reward: {total_reward}, Epsilon: {epsilon:.3f}")
+
+
+'''
+
+with torch.no_grad():
+    dummy = torch.zeros(1, 4, 60, 80)
+    out = model(dummy)
+    print(out.shape)  # Should be (1, num_actions)
+
+'''
