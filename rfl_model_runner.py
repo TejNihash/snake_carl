@@ -486,18 +486,19 @@ print("state tensor shape",state_tensor.shape)
 action_dim = len(game1.actions)
 
 q_net = CNN_DQN(state_dim[0], action_dim).to(device)
+q_net.load_state_dict(torch.load('q_net_mark1.pth'))
 target_net = CNN_DQN(state_dim[0], action_dim).to(device)
 
 target_net.load_state_dict(q_net.state_dict())  # Copy weights
 target_net.eval()
 
-optimizer = optim.Adam(q_net.parameters(), lr=1e-2)
+optimizer = optim.Adam(q_net.parameters(), lr=1e-3)
 buffer = ReplayBuffer(10000)
 
 batch_size = 64
 gamma = 0.99
 epsilon = 1.0
-epsilon_decay = 0.996
+epsilon_decay = 0.95
 epsilon_min = 0.1
 target_update_freq = 7
 
@@ -522,11 +523,11 @@ def select_action(state, epsilon):
 mouse_no_start = 65
 mouse_decay = 0.999
 mouse_min = 20
+no_of_mouse = mouse_no_start
 
-num_episodes = 500
+num_episodes = 200
 episode_rewards = []
 
-lookup_frames = []
 
 for episode in range(num_episodes):
     no_of_mouse = max(int(no_of_mouse*mouse_decay),mouse_min)
@@ -536,7 +537,7 @@ for episode in range(num_episodes):
 
 
 
-    for t in range(300): #max 200 steps per episode
+    for t in range(100): #max 200 steps per episode
         action = select_action(frame_states,epsilon) #returns a number from 0,1,2,3
 
         next_frame_state,reward,done = game1.step(action)
@@ -550,7 +551,7 @@ for episode in range(num_episodes):
             
             # Compute current Q values
             q_values = q_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)
-            print(q_values.mean().item())
+            #print(q_values.mean().item())
 
             
             # Compute target Q values
@@ -566,7 +567,6 @@ for episode in range(num_episodes):
             optimizer.step()
 
         if done:
-
             break
 
 
@@ -581,11 +581,11 @@ for episode in range(num_episodes):
 
     episode_rewards.append(total_reward)
 
-    print(f"Episode {episode}, Total reward: {total_reward}, Epsilon: {epsilon:.3f}")
+    print(f"Episode {episode}, Total reward: {total_reward}, Epsilon: {epsilon:.3f}, no. of mouses {no_of_mouse}")
 
 plot_rewards(episode_rewards)
 
-torch.save(q_net.state_dict(), "q_net_mark1.pth")
+torch.save(q_net.state_dict(), "q_net_mark2.pth")
 
 print("brooo",len(frame_state))
 #print(frame_state[-1]/255.0)

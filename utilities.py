@@ -11,7 +11,7 @@ import cv2
 snake_unit_width = 12
 snake_unit_length = 16
 snake_dirs = (0,1,2,3) #0 for north, 1 for east, 2 for south, 3 for west
-snake_speed = 0.5*snake_unit_length #I want snake to move half it's length in a time step
+snake_speed = 2*snake_unit_length #I want snake to move half it's length in a time step
 
 mouse_size = (18,18)
 mouse_color = (80,80,80)
@@ -22,8 +22,9 @@ screen_height = 600
 screen_width = 800
 
 wall_color = (50,50,50)
-wall_lengths = (50,70,90)
-wall_width = 10
+wall_lengths = (50,80,100)
+wall_width = 20
+available_walls = ((80,20),(100,20),(50,20),(20,50),(20,70),(20,90))
 directions = ("H","V")
 division_ratio = 1 # experimental, change it later on
 division_length = int(max(wall_lengths)/division_ratio) # so that we have maximum walls fit in
@@ -265,7 +266,7 @@ def create_maze_sprites(screen_width,screen_height,division_length):
     #returns a list of dictionary of maze walls with their coords and the angles. so, (x,y,wall_width,wall_length,direction)
     wall_sprites_list = []
 
-    available_walls = ((70,10),(90,10),(50,10),(10,50),(10,70),(10,90))
+    
 
     np.random.seed(43) #to control the randomness lol
     
