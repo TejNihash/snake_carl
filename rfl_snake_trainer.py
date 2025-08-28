@@ -444,7 +444,7 @@ class ReplayBuffer:
         samples = random.sample(self.buffer, batch_size)
         states, actions, rewards, next_states, dones = zip(*samples)
         states = np.array(states)
-        next_states = np.array(states)
+        next_states = np.array(next_states)
         return (
             torch.tensor(states, dtype=torch.float,device=device),
             torch.tensor(actions, dtype=torch.long,device=device),
@@ -537,7 +537,7 @@ for episode in range(num_episodes):
 
 
     for t in range(300): #max 200 steps per episode
-        action = select_action(frame_states,epsilon) #returns a number from 0,1,2,3
+        action = select_action(frame_state,epsilon) #returns a number from 0,1,2,3
 
         next_frame_state,reward,done = game1.step(action)
         buffer.push(frame_state,action,reward,next_frame_state,done)

@@ -18,11 +18,22 @@ import torch.nn.functional as F
 
 global running
 
+#training settings
+maze_yes = False
+increase_snake_length = False
+
+
+global skip_frame
+skip_frame = 2
+render = True
+no_of_moved_away_allowed = 10
+
+
 
 snake_unit_width = 8
 snake_unit_length = 10
 snake_dirs = (0,1,2,3) #0 for north, 1 for east, 2 for south, 3 for west
-snake_speed = 2*snake_unit_length #I want snake to move half it's length in a time step
+snake_speed = 0.5*snake_unit_length #I want snake to move half it's length in a time step
 
 mouse_size = (16,16)
 mouse_color = (50,50,50)
@@ -44,8 +55,18 @@ collision_threshold = 10
 
 player_score = 0
 
-screen = pygame.display.set_mode((screen_width,screen_height))
+pygame.init()
+pygame.font.init()
 
+font = pygame.font.SysFont('Arial', 14)
+text_color = (255, 255, 255) # White
+
+
+
+if render:
+    screen = pygame.display.set_mode((screen_width,screen_height))
+else:
+    screen = pygame.Surface((screen_width,screen_height))
 clock = pygame.time.Clock()
 
 
@@ -161,6 +182,9 @@ class snake_game:
         self.player_score = 0
         self.k  = 4
         self.states = frame_stack(self.k)
+        self.mouse_snake_dist = None
+        self.min_mouse_snake_dist = None
+        self.moved_away = 0
 
     def create_wall_sprites(self):
         wall_sprites_group = pygame.sprite.Group()
@@ -174,11 +198,33 @@ class snake_game:
         return wall_sprites_group
     
 
+    def get_mouse_snake_dist(self):
+        x1,y1 = self.snake.snake_units.sprites()[0].rect.x,self.snake.snake_units.sprites()[0].rect.y
+        x2,y2 = self.mouse_sprites_group.sprites()[0].rect.x,self.mouse_sprites_group.sprites()[0].rect.y
+
+        dist = abs(x1-x2) + abs(y1-y2)
+
+        return dist
+    def get_min_mouse_snake_dist(self):
+        
+        dist_min = 5000 #some high number
+        x1,y1 = self.snake.snake_units.sprites()[0].rect.x,self.snake.snake_units.sprites()[0].rect.y
+        for mouse in self.mouse_sprites_group:
+            x2,y2 = mouse.rect.x,mouse.rect.y
+
+            dist = abs(x1-x2) + abs(y1-y2)
+
+            if dist<= dist_min:
+                dist_min = dist
+
+        return dist_min
+
+
 
 
     def initialize(self):
         self.snake = snake("carl")
-        self.snake.initilize() #snake needs it's initilization right?
+        self.snake.initialize() #snake needs it's initilization right?
 
         self.wall_sprites_group = self.create_wall_sprites()
 
@@ -223,15 +269,19 @@ class snake_game:
         self.pause = False
         self.running = True
         self.game_over = False
+        self.moved_away = 0 
 
         self.snake = snake("carl")
-        self.snake.initilize() #snake needs it's initilization right?
+        self.snake.initialize() #snake needs it's initilization right?
 
         if maze_new:  #make it a new maze only if it is needed.
             self.wall_sprites_group = self.create_wall_sprites()
 
         self.mouse_sprites_group =pygame.sprite.Group()
-        self.all_sprites = pygame.sprite.Group(self.snake.snake_units)#,self.mouse_sprites_group,self.wall_sprites_group)
+        if maze_yes:
+            self.all_sprites = pygame.sprite.Group(self.snake.snake_units,self.mouse_sprites_group,self.wall_sprites_group)
+        else:
+            self.all_sprites = pygame.sprite.Group(self.snake.snake_units,self.mouse_sprites_group)#,self.wall_sprites_group)
 
         
 
@@ -243,16 +293,29 @@ class snake_game:
                 hit_list0 = pygame.sprite.spritecollide(new_mouse,self.all_sprites,dokill=False)
                 if hit_list0:
                     new_mouse.kill()
-                    print("mouse spawned under a wall")
+                    #print("mouse spawned under a wall")
                     continue
                 #if new mouse is indeed good, then add to the mouse group
                 proper = True
                 self.mouse_sprites_group.add(new_mouse)
                 self.all_sprites.add(new_mouse)
 
-        
-        #self.all_sprites = pygame.sprite.Group(self.snake.snake_units,self.mouse_sprites_group,self.wall_sprites_group)
-        pygame.display.flip()
+        if maze_yes:
+            self.all_sprites = pygame.sprite.Group(self.snake.snake_units,self.mouse_sprites_group,self.wall_sprites_group)
+        else:
+            self.all_sprites = pygame.sprite.Group(self.snake.snake_units,self.mouse_sprites_group)#,self.wall_sprites_group)
+
+        self.mouse_snake_dist = self.get_mouse_snake_dist()
+        self.min_mouse_snake_dist = self.get_min_mouse_snake_dist()
+
+
+
+        screen.fill(screen_bg)
+        self.all_sprites.draw(screen)
+
+        if render:
+
+            pygame.display.flip()
 
         frame  = get_pygame_frame(screen)
         for _ in range(self.k):
@@ -290,106 +353,159 @@ class snake_game:
     def step(self,action):
             
         executed = False
-        reward = -1
+        
 
-        while not executed and not self.game_over:
+        step_reward  = 0
+        reward = 0
+        for i in range(skip_frame):
+            executed = False
+            reward += 0
+            while not executed and not self.game_over:
 
-            #revise the events logic later on
-            events = pygame.event.get()
-            for event in events:
-                if event.type == pygame.QUIT:
-                    running = False
+                #revise the events logic later on
+                '''events = pygame.event.get()
+                for event in events:
+                    if event.type == pygame.QUIT:
+                        running = False
+                        
+                        break
+                    if event.type ==pygame.KEYDOWN:
+                        if event.key == pygame.K_SPACE:
+                            self.pause = not self.pause'''
+
+
+                screen.fill(screen_bg)
+
+                #update the snake
+                self.snake.update_snake(action)
+
+                #draw
+                '''self.all_sprites.draw(screen)
+
+                pygame.display.update()
+                pygame.display.flip()'''
+
+
+                #we check for shit
+
+                if self.pause:
+                    text_surface = font.render(f'Pause!', True, text_color)
+                    text_rect = text_surface.get_rect(center=(screen_width//2, screen_height//2))
+                    screen.blit(text_surface, text_rect)
+                    pygame.display.flip()
+                    continue
+                
+                #get the manhattan distance. if moved away, -0.5, else +0.5
+                # dist at t2 - dist at t1
+
+                '''pres_dist = self.get_mouse_snake_dist()
+                diff = pres_dist - self.mouse_snake_dist
+                self.mouse_snake_dist = pres_dist'''
+
+                pres_min_dist = self.get_min_mouse_snake_dist()
+                diff = pres_min_dist -self.min_mouse_snake_dist
+                self.min_mouse_snake_dist = pres_min_dist
+
+
+                
+                if diff < 0:
+                    #it went closer
+                    reward +=0.4
+                    #print("moved closer")
                     
+                elif diff>0:
+                    reward +=-0.4
+
+                    self.moved_away +=1
+
+                    if self.moved_away> no_of_moved_away_allowed:
+                        self.game_over = True
+                    #print("moved away")
+                    
+
+
+
+                #collision detection for mouse and snake
+                hit_list = pygame.sprite.groupcollide(self.mouse_sprites_group,self.snake.snake_units,dokilla=True,dokillb=False)
+
+                if hit_list:
+                    
+                    if increase_snake_length:
+                        self.snake.add_link()
+                    self.player_score+=1
+                    reward +=10
+                    
+                    
+
+                    proper = False
+                    while not proper:
+                        new_mouse = get_mouse()
+                        hit_list = pygame.sprite.spritecollide(new_mouse,self.all_sprites,False)
+                        if hit_list:
+                            new_mouse.kill()
+                            print("bad respawn")
+                            continue
+                        proper = True
+                        self.mouse_sprites_group.add(new_mouse)
+
+                    '''self.mousie.kill() #kill the mouse
+                    self.mousie = get_mouse() #gets us new mouse and assigns it to the using mousie var'''
+
+                    if maze_yes:
+                        self.all_sprites = pygame.sprite.Group(self.snake.snake_units,self.mouse_sprites_group,self.wall_sprites_group)
+                    else:
+                        self.all_sprites = pygame.sprite.Group(self.snake.snake_units,self.mouse_sprites_group)#,self.wall_sprites_group)
+                        
+                    #print("player score is : ",self.player_score)
+                    
+
+                #collision detection for snakehead and walls
+                if maze_yes:
+                    hit_list1 = pygame.sprite.spritecollide(self.snake.snake_units.sprites()[0],self.wall_sprites_group,dokill=False)
+                    if hit_list1 :
+                        reward += -15
+                        
+                        self.game_over = True
+                    
+
+                    
+                    #well, game over... so just pause there and show that game is over
+                    
+                    '''text_surface = font.render(f'Game over!', True, text_color)
+                    text_rect = text_surface.get_rect(center=(screen_width//2, screen_height//2))
+                    screen.blit(text_surface, text_rect)'''
+                    '''pygame.display.flip()
+                    continue'''
+
+                #update
+                self.all_sprites.draw(screen)
+
+                if render:
+
+                    pygame.display.update()
+                    pygame.display.flip()
+                
+
+                
+
+                executed = True
+
+                step_reward = (step_reward*i + reward)/(i+1)
+                
+                if self.game_over:
                     break
-                if event.type ==pygame.KEYDOWN:
-                    if event.key == pygame.K_SPACE:
-                        self.pause = not self.pause
+
+        frame = get_pygame_frame(screen)
+        next_frame = self.states.add(frame)
+
+        return  next_frame,step_reward,self.game_over
 
 
-            screen.fill(screen_bg)
-
-            #update the snake
-            self.snake.update_snake(action)
-
-            #draw
-            self.all_sprites.draw(screen)
-
-            pygame.display.update()
-            pygame.display.flip()
-
-
-            #we check for shit
-
-            if self.pause:
-                text_surface = font.render(f'Pause!', True, text_color)
-                text_rect = text_surface.get_rect(center=(screen_width//2, screen_height//2))
-                screen.blit(text_surface, text_rect)
-                pygame.display.flip()
-                continue
-            
-
-
-            #collision detection for mouse and snake
-            hit_list = pygame.sprite.groupcollide(self.mouse_sprites_group,self.snake.snake_units,dokilla=True,dokillb=False)
-            if hit_list:
-                self.snake.add_link()
-                self.player_score+=1
-                reward =3
-                
-
-                proper = False
-                while not proper:
-                    new_mouse = get_mouse()
-                    hit_list = pygame.sprite.spritecollide(new_mouse,self.all_sprites,False)
-                    if hit_list:
-                        new_mouse.kill()
-                        print("bad respawn")
-                        continue
-                    proper = True
-                    self.mouse_sprites_group.add(new_mouse)
-
-                '''self.mousie.kill() #kill the mouse
-                self.mousie = get_mouse() #gets us new mouse and assigns it to the using mousie var'''
-
-                self.all_sprites = pygame.sprite.Group(self.snake.snake_units,self.mouse_sprites_group)#,self.wall_sprites_group)
-                print("player score is : ",self.player_score)
-                
-
-            #collision detection for snakehead and walls
-            #hit_list1 = pygame.sprite.spritecollide(self.snake.snake_units.sprites()[0],self.wall_sprites_group,dokill=False)
-            #if hit_list1 :
-            #    reward = -3
-             #   self.game_over = True
-                
-
-                
-                #well, game over... so just pause there and show that game is over
-                
-                '''text_surface = font.render(f'Game over!', True, text_color)
-                text_rect = text_surface.get_rect(center=(screen_width//2, screen_height//2))
-                screen.blit(text_surface, text_rect)'''
-                '''pygame.display.flip()
-                continue'''
-
-            #update
-
-            #pygame.display.update()
-            
-
-            
-
-            executed = True
-            frame = get_pygame_frame(screen)
-            next_frame = self.states.add(frame)
-
-        return  next_frame,reward,self.game_over
-
-
-def plot_rewards(rewards):
+def plot_rewards(rewards,title):
     plt.figure(figsize=(10, 5))
-    plt.plot(rewards, label='Total Reward per Episode')
+    plt.plot(rewards, label=title)
     plt.xlabel('Episode')
-    plt.ylabel('Total Reward')
+    plt.ylabel('Y')
     plt.title('Training Progress')
     plt.grid(True)
     plt.legend()
@@ -444,7 +560,7 @@ class ReplayBuffer:
         samples = random.sample(self.buffer, batch_size)
         states, actions, rewards, next_states, dones = zip(*samples)
         states = np.array(states)
-        next_states = np.array(states)
+        next_states = np.array(next_states)
         return (
             torch.tensor(states, dtype=torch.float,device=device),
             torch.tensor(actions, dtype=torch.long,device=device),
@@ -460,11 +576,7 @@ class ReplayBuffer:
 
 
 
-pygame.init()
-pygame.font.init()
 
-font = pygame.font.SysFont('Arial', 14)
-text_color = (255, 255, 255) # White
 
 #game logic
 
@@ -475,18 +587,19 @@ pause = False
 game_over = False
 
 game1 = snake_game()
-frame_states = game1.reset(maze_new=True)  #self.states is returned which is a deque stack
+frame_state = game1.reset(maze_new=True)  #self.states is returned which is a deque stack
 
 
-state_dim = frame_states.shape 
+state_dim = frame_state.shape 
 print(state_dim[0],"state dimension")
-state_tensor = torch.tensor(frame_states,dtype = torch.float32).unsqueeze(0)
+state_tensor = torch.tensor(frame_state,dtype = torch.float32).unsqueeze(0)
 print("state tensor shape",state_tensor.shape)
 
 action_dim = len(game1.actions)
 
 q_net = CNN_DQN(state_dim[0], action_dim).to(device)
-q_net.load_state_dict(torch.load('q_net_mark1.pth'))
+q_net.load_state_dict(torch.load('q_net_mark10.pth', map_location=device))
+#q_net.load_state_dict(torch.load('q_net_mark7.pth'),'weights_only = True')
 target_net = CNN_DQN(state_dim[0], action_dim).to(device)
 
 target_net.load_state_dict(q_net.state_dict())  # Copy weights
@@ -497,10 +610,10 @@ buffer = ReplayBuffer(10000)
 
 batch_size = 64
 gamma = 0.99
-epsilon = 1.0
-epsilon_decay = 0.95
-epsilon_min = 0.1
-target_update_freq = 7
+epsilon = 0.05
+epsilon_decay = 0.9995
+epsilon_min = 0.03
+target_update_freq = 20
 
 '''
 let me update the game, so that we get rewards too. 
@@ -520,72 +633,110 @@ def select_action(state, epsilon):
         return q_values.argmax().item()
     
 
-mouse_no_start = 65
-mouse_decay = 0.999
-mouse_min = 20
+mouse_no_start = 20
+mouse_decay = 0.9995
+mouse_min = 1
 no_of_mouse = mouse_no_start
 
-num_episodes = 200
+num_episodes = 4000
+num_steps = 200
 episode_rewards = []
+no_steps_alive = []
+epsilon_vals = []
+
+running = True
+
+
+start = time.time()  # record start time
 
 
 for episode in range(num_episodes):
-    no_of_mouse = max(int(no_of_mouse*mouse_decay),mouse_min)
+    #no_of_mouse = int(max(no_of_mouse*mouse_decay,mouse_min))
+    no_of_mouse = max(int(epsilon*mouse_no_start),mouse_min)
 
     frame_state = game1.reset(maze_new=False,no_of_mouse=no_of_mouse)
     total_reward = 0
 
+    if running==False:
+        break
+
+    for t in range(num_steps): #max 200 steps per episode
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False        
+
+        action = select_action(frame_state,epsilon) #returns a number from 0,1,2,3
 
 
-    for t in range(100): #max 200 steps per episode
-        action = select_action(frame_states,epsilon) #returns a number from 0,1,2,3
+
+
 
         next_frame_state,reward,done = game1.step(action)
         buffer.push(frame_state,action,reward,next_frame_state,done)
+
+        #uncomment them if you wanna see what the algorithm sees
+        '''show_gray_scale_images(frame_state)   
+        print("action taken",action)
+        show_gray_scale_images(next_frame_state)'''
+
+
         frame_state= next_frame_state
         total_reward +=reward
 
-        if len(buffer) >= batch_size: #this is the only time
-            states, actions, rewards, next_states, dones = buffer.sample(batch_size)
-            
-            
-            # Compute current Q values
-            q_values = q_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)
-            #print(q_values.mean().item())
+        if t %2  ==0:
+            if len(buffer) >= 5_00: #this is the only time the network gets trained
+                states, actions, rewards, next_states, dones = buffer.sample(batch_size)
+                
+                
+                # Compute current Q values
+                q_values = q_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)
+                #print(q_values.mean().item())
 
-            
-            # Compute target Q values
-            with torch.no_grad():
-                max_next_q_values = target_net(next_states).max(1)[0]
-                targets = rewards + gamma * max_next_q_values * (1 - dones)
-            
-            loss = nn.MSELoss()(q_values, targets)
-            
-            optimizer.zero_grad()
-            loss.backward()
-            
-            optimizer.step()
+                
+                # Compute target Q values
+                with torch.no_grad():
+                    max_next_q_values = target_net(next_states).max(1)[0]
+                    targets = rewards + gamma * max_next_q_values * (1 - dones)
+                
+                loss = nn.SmoothL1Loss()(q_values, targets)
+                
+                optimizer.zero_grad()
+                loss.backward()
+                
+                optimizer.step()
 
-        if done:
-            break
-
+            if done:
+                no_steps_alive.append(t)
+                break
+    epsilon_vals.append(epsilon)
 
     # Update epsilon
     epsilon = max(epsilon_min, epsilon * epsilon_decay)
-    if epsilon<= epsilon_min:
-        epsilon = 0.3
+    
 
     # Update target network
     if episode % target_update_freq == 0:
         target_net.load_state_dict(q_net.state_dict())
 
+    total_reward = round(total_reward,3)
     episode_rewards.append(total_reward)
+    
 
-    print(f"Episode {episode}, Total reward: {total_reward}, Epsilon: {epsilon:.3f}, no. of mouses {no_of_mouse}")
+    if not done:
+        no_steps_alive.append(num_steps)
 
-plot_rewards(episode_rewards)
+    print(f"Episode {episode}, Total reward: {total_reward}, Epsilon: {epsilon:.3f}, no. of mouses: {no_of_mouse}, no.of steps survived:  {no_steps_alive[-1]}")
 
-torch.save(q_net.state_dict(), "q_net_mark2.pth")
+
+end = time.time()  # record end time
+print(f"Execution time: {end - start:.4f} seconds")
+
+plot_rewards(episode_rewards,'total reward per episode')
+plot_rewards(no_steps_alive,'no of steps survived per episode')
+plot_rewards(epsilon_vals,'epsilon vals in an episode')
+
+torch.save(q_net.state_dict(), "q_net_mark10.pth")
 
 print("brooo",len(frame_state))
 #print(frame_state[-1]/255.0)

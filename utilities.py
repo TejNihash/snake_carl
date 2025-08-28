@@ -11,7 +11,7 @@ import cv2
 snake_unit_width = 12
 snake_unit_length = 16
 snake_dirs = (0,1,2,3) #0 for north, 1 for east, 2 for south, 3 for west
-snake_speed = 2*snake_unit_length #I want snake to move half it's length in a time step
+snake_speed = 0.5*snake_unit_length #I want snake to move half it's length in a time step
 
 mouse_size = (18,18)
 mouse_color = (80,80,80)
@@ -21,6 +21,8 @@ screen_bg = (10,20,150)
 screen_height = 600
 screen_width = 800
 
+
+maze_state = 40
 wall_color = (50,50,50)
 wall_lengths = (50,80,100)
 wall_width = 20
@@ -53,7 +55,7 @@ class snake(pygame.sprite.Sprite):
         self.snake_units =  pygame.sprite.Group()
         self.snake_units_dir = []
 
-    def initilize(self):
+    def initialize(self):
         
 
         rand_dir = int(np.random.choice(snake_dirs))
@@ -204,7 +206,7 @@ class snake(pygame.sprite.Sprite):
         #check for key press
 
        
-        if action==3:
+        if action==3 and self.snake_units_dir[0]!=1:
             #change direction to left only if the original direction is not left/3...well?
             self.snake_units_dir[0] = 3
             self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
@@ -215,7 +217,7 @@ class snake(pygame.sprite.Sprite):
             )
 
             
-        elif action==1:
+        elif action==1 and self.snake_units_dir[0]!=3:
             self.snake_units_dir[0] = 1
             self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
                                                                         (self.unit_length,
@@ -224,7 +226,7 @@ class snake(pygame.sprite.Sprite):
                 center = self.snake_units.sprites()[0].rect.center
             )
             
-        elif action==0:
+        elif action==0 and self.snake_units_dir[0]!=2:
             self.snake_units_dir[0] = 0
             self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
                                                                         (self.unit_width,
@@ -233,7 +235,7 @@ class snake(pygame.sprite.Sprite):
                 center = self.snake_units.sprites()[0].rect.center
             )
             
-        elif action==2:
+        elif action==2 and self.snake_units_dir[0]!=0:
             self.snake_units_dir[0] = 2
             self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
                                                                         (self.unit_width,
@@ -268,7 +270,7 @@ def create_maze_sprites(screen_width,screen_height,division_length):
 
     
 
-    np.random.seed(43) #to control the randomness lol
+    random.seed(maze_state) #to control the randomness lol
     
     for i in range(int(screen_width/division_length)+1):
         for j in range(int(screen_height/division_length)+1):

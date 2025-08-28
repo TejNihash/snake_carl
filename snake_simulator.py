@@ -211,7 +211,9 @@ class snake(pygame.sprite.Sprite):
             if event.type == pygame.QUIT:
                 pygame.quit()
             if event.type ==pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT:
+
+                prev_head_dir = self.snake_units_dir[0]
+                if event.key == pygame.K_LEFT and prev_head_dir!=1:
                     #change direction to left only if the original direction is not left/3...well?
                     self.snake_units_dir[0] = 3
                     self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
@@ -222,7 +224,7 @@ class snake(pygame.sprite.Sprite):
                     )
 
                     
-                elif event.key == pygame.K_RIGHT:
+                elif event.key == pygame.K_RIGHT and prev_head_dir!=3:
                     self.snake_units_dir[0] = 1
                     self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
                                                                                 (self.unit_length,
@@ -231,7 +233,7 @@ class snake(pygame.sprite.Sprite):
                         center = self.snake_units.sprites()[0].rect.center
                     )
                     
-                elif event.key == pygame.K_UP:
+                elif event.key == pygame.K_UP and prev_head_dir!=2:
                     self.snake_units_dir[0] = 0
                     self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
                                                                                 (self.unit_width,
@@ -240,7 +242,7 @@ class snake(pygame.sprite.Sprite):
                         center = self.snake_units.sprites()[0].rect.center
                     )
                     
-                elif event.key == pygame.K_DOWN:
+                elif event.key == pygame.K_DOWN and prev_head_dir!=0:
                     self.snake_units_dir[0] = 2
                     self.snake_units.sprites()[0].image = pygame.transform.scale(self.snake_units.sprites()[0].image,
                                                                                 (self.unit_width,
