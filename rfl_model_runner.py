@@ -180,7 +180,7 @@ class snake_game:
         self.running = True
         self.game_over = False
         self.player_score = 0
-        self.k  = 4
+        self.k  = 4 #no of frames to hold on to
         self.states = frame_stack(self.k)
         self.mouse_snake_dist = None
         self.min_mouse_snake_dist = None

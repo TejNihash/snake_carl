@@ -95,18 +95,26 @@ class snake(pygame.sprite.Sprite):
         prev_head_coords = (self.snake_units.sprites()[0].rect.x,self.snake_units.sprites()[0].rect.y)
         prev_head_dir = self.snake_units_dir[0]
 
-        
+        roll_over = False
 
         if prev_head_dir==0: #up we go
+            if self.snake_units.sprites()[0].rect.y-snake_speed<0:
+                roll_over=True
             self.snake_units.sprites()[0].rect.y = (self.snake_units.sprites()[0].rect.y-snake_speed)%screen_height
 
         elif prev_head_dir == 1: #right we go
+            if self.snake_units.sprites()[0].rect.x +snake_speed>screen_width:
+                roll_over = True
             self.snake_units.sprites()[0].rect.x = (self.snake_units.sprites()[0].rect.x +snake_speed)%screen_width
 
         elif prev_head_dir == 2:
+            if self.snake_units.sprites()[0].rect.y +snake_speed>screen_height:
+                roll_over = True
             self.snake_units.sprites()[0].rect.y= (self.snake_units.sprites()[0].rect.y +snake_speed)%screen_height
         
         elif prev_head_dir == 3:
+            if self.snake_units.sprites()[0].rect.x -snake_speed <0:
+                roll_over = True
             self.snake_units.sprites()[0].rect.x = (self.snake_units.sprites()[0].rect.x -snake_speed)%screen_width
 
         else:
@@ -135,7 +143,7 @@ class snake(pygame.sprite.Sprite):
 
         
 
-        return "You're done!"
+        return roll_over
     
     def ate_mouse():
         pass
@@ -248,7 +256,10 @@ class snake(pygame.sprite.Sprite):
             return
             
 
-        self.move_forward()
+        m = self.move_forward()
+        return m
+
+
 
         
 #maze related
