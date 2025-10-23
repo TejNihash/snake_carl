@@ -1,7 +1,3 @@
-#so here we are going to use normal neural nets and give it the inside information of position and let the snake decide how to eat them.
-#I'm doubting that cnn maybe messed up. 
-
-
 import pygame
 import numpy as np
 import random
@@ -10,9 +6,9 @@ import time
 import matplotlib.pyplot as plt
 from collections import deque
 import cv2
-from utilities import snake,snake_unit
-from utilities import maze_wall,create_maze_sprites
-from utilities import mouse,get_mouse
+from utilities import snake
+from utilities import create_maze_sprites
+from utilities import get_mouse
 
 import torch
 import torch.optim as optim
@@ -25,15 +21,16 @@ global running
 #training settings
 maze_yes = False
 increase_snake_length = False
+debug = False
 over_pass_allowed = False
-debug = False #to see what actions it's taking and what states it's going through.
-Train = False  #are you trying to test or let it run?
 
 
 global skip_frame
 skip_frame = 2
 render = True
 no_of_moved_away_allowed = 40
+no_of_frames_in_stack = 2 #no diff frame
+
 
 
 
@@ -43,9 +40,9 @@ snake_dirs = (0,1,2,3) #0 for north, 1 for east, 2 for south, 3 for west
 snake_speed = 0.5*snake_unit_length #I want snake to move half it's length in a time step
 
 mouse_size = (16,16)
-mouse_color = (50,50,50)
+mouse_color = (10,250,10)
 
-snake_color = (250,250,230)
+snake_color = (250,20,20)
 screen_bg = (10,20,15)
 screen_height = 600
 screen_width = 800
@@ -58,7 +55,6 @@ division_ratio = 1 # experimental, change it later on
 division_length = int(max(wall_lengths)/division_ratio) # so that we have maximum walls fit in
 
 
-collision_threshold = 10
 
 player_score = 0
 
@@ -101,45 +97,68 @@ def get_pygame_frame(screen):
     return frame
 
 
+def preprocess_frame(frame,shape = (80,60)):
+    #take in a frame of pygame convert it to grey scale and resize it. 
+    gray = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)   #shape : (H,W)
+    
+    #binary = dominant_binarize(gray)
+
+    resized = cv2.resize(gray,shape,cv2.INTER_AREA)
+    return resized
 
 
-def dominant_binarize(gray_img):
-    # Step 1: Flatten and count unique values
-    values, counts = np.unique(gray_img, return_counts=True)
-    dominant_value = values[np.argmax(counts)]
 
-    # Step 2: Create binary mask
-    binary = np.where(gray_img == dominant_value, 0, 255).astype(np.uint8)
-    return binary
+def plot_rewards(rewards,title):
+    plt.figure(figsize=(10, 5))
+    plt.plot(rewards, label=title)
+    plt.xlabel('Episode')
+    plt.ylabel('Y')
+    plt.title('Training Progress')
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+            
 
-
+        
 
 
 class frame_stack:
     def __init__(self,k):
+        self.prev_frame = None  # store previous frame
         self.k = k
-        self.state_stack = deque([],maxlen=k)
 
-    def reset(self):
-        #sets the stack to zero
+    def reset(self, init_frame):
+        """Initialize the stack with first frame"""
+        processed_frame = preprocess_frame(init_frame)
+        self.prev_frame = processed_frame
+        # Stack: frame1, frame2 (same as frame1 initially), difference (zeros)
+        #diff = np.zeros_like(processed_frame)
+        stacked = np.stack([processed_frame, processed_frame], axis=0)  # shape [3, H, W]
+        return stacked
 
-        self.state_stack.clear()
- 
-        return np.concatenate(self.state_stack,axis = 0) # we will have k,h,w dimensional array
+    def add(self, new_frame):
+        """Add new frame and return stacked (frame1, frame2, f2-f1)"""
+        processed_frame = preprocess_frame(new_frame)
 
-    def add(self,new_frame):
-        '''#adds the new frame to the stack and returns the stack in concatenated way
-        # just give it the normal transposed frame and it wil do the preprocessing'''
+        frame1 = self.prev_frame
+        frame2 = processed_frame
+        #frame_diff = frame2 - frame1
 
-        
-        self.state_stack.append(new_frame)
-        return np.stack(self.state_stack,axis = 0)  # gets me the shape of (4,60,80)
-        
+        stacked = np.stack([frame1, frame2], axis=0)
+
+        self.prev_frame = frame2
+        return stacked
+    
     def __len__(self):
         return self.k
+
         
 
-
+def show_gray_scale_image(img):
+    plt.imshow(img,cmap='gray',interpolation='nearest')
+    plt.axis('off')
+    plt.show()
 
 import matplotlib.pyplot as plt
 
@@ -150,8 +169,8 @@ def show_gray_scale_images(imgs):
     """
     plt.figure(figsize=(12, 3))  # Wider figure for side-by-side display
 
-    for i in range(4):
-        plt.subplot(1, 4, i + 1)
+    for i in range(no_of_frames_in_stack):
+        plt.subplot(1, no_of_frames_in_stack, i + 1)
         img = imgs[i]
 
         # Handle torch tensor (convert to numpy)
@@ -175,7 +194,7 @@ class snake_game:
         self.running = True
         self.game_over = False
         self.player_score = 0
-        self.k  = 1
+        self.k  = no_of_frames_in_stack #no of frames to hold on to
         self.states = frame_stack(self.k)
         self.mouse_snake_dist = None
         self.min_mouse_snake_dist = None
@@ -192,22 +211,7 @@ class snake_game:
         
         return wall_sprites_group
     
-    def get_frame_state(self):
-        xs1,ys1 = self.snake.snake_units.sprites()[0].rect.x,self.snake.snake_units.sprites()[0].rect.y
-        ds = self.snake.snake_units_dir[0]
-        xm1,ym1 = self.mouse_sprites_group.sprites()[0].rect.x,self.mouse_sprites_group.sprites()[0].rect.y
-        dx = xs1 - xm1
-        dy = ys1 - ym1
-        
 
-        if ds ==0:
-            return (dx,dy,1,0,0,0)
-        elif ds ==1:
-            return (dx,dy,0,1,0,0)
-        elif ds ==2:
-            return (dx,dy,0,0,1,0)
-        elif ds ==3:
-            return (dx,dy,0,0,0,1)
     def get_mouse_snake_dist(self):
         x1,y1 = self.snake.snake_units.sprites()[0].rect.x,self.snake.snake_units.sprites()[0].rect.y
         x2,y2 = self.mouse_sprites_group.sprites()[0].rect.x,self.mouse_sprites_group.sprites()[0].rect.y
@@ -233,6 +237,13 @@ class snake_game:
 
 
     def initialize(self):
+
+        self.pause = False
+        self.running = True
+        self.game_over = False
+        self.moved_away = 0 
+
+        
         self.snake = snake("carl")
         self.snake.initialize() #snake needs it's initilization right?
 
@@ -262,15 +273,15 @@ class snake_game:
             self.all_sprites = pygame.sprite.Group(self.snake.snake_units,self.mousie,self.wall_sprites_group)
             pygame.display.flip()
 
-            frame  = self.get_frame_state()
-            for _ in range(self.k):
-                self.states.add(frame)
+            frame  = get_pygame_frame(screen)
+            '''for _ in range(self.k):
+                self.states.add(frame)'''
             
-
+            stacked_frame = self.states.reset(frame)
             proper = True
 
 
-        return np.stack(self.states.state_stack,axis=0),self.game_over
+        return stacked_frame,self.game_over
 
 
 
@@ -327,16 +338,15 @@ class snake_game:
 
             pygame.display.flip()
 
-        frame  = self.get_frame_state()
-        for _ in range(self.k):
-            self.states.add(frame)
+        frame  = get_pygame_frame(screen)
+        '''for _ in range(self.k):
+            self.states.add(frame)'''
+        stacked_frame = self.states.reset(frame)  # returns [f1,f2,f2-f1]
+
 
         proper = True
 
-        return np.stack(self.states.state_stack,axis=0)
-
- 
-
+        return stacked_frame
 
 
             
@@ -399,21 +409,22 @@ class snake_game:
                 diff = pres_min_dist -self.min_mouse_snake_dist
                 self.min_mouse_snake_dist = pres_min_dist
 
-                #check if the snake crossed over the screen
+
+                
+#check if the snake crossed over the screen
                 if not over_pass_allowed:
                     
 
                     if rolled_over:
                         reward +=-15
-                        self.game_over = True
-                
+                        self.game_over = True                
                 if diff < 0:
                     #it went closer
-                    reward +=1
+                    reward +=0.1
                     #print("moved closer")
                     
                 elif diff>0:
-                    reward += -1
+                    reward +=-0.1
 
                     self.moved_away +=1
 
@@ -432,7 +443,7 @@ class snake_game:
                     if increase_snake_length:
                         self.snake.add_link()
                     self.player_score+=1
-                    reward +=15
+                    reward +=3
                     
                     
 
@@ -462,7 +473,7 @@ class snake_game:
                 if maze_yes:
                     hit_list1 = pygame.sprite.spritecollide(self.snake.snake_units.sprites()[0],self.wall_sprites_group,dokill=False)
                     if hit_list1 :
-                        reward += -15
+                        reward += -3
                         
                         self.game_over = True
                     
@@ -494,25 +505,13 @@ class snake_game:
                 if self.game_over:
                     break
 
-        frame = self.get_frame_state()
+        frame = get_pygame_frame(screen)
         next_frame = self.states.add(frame)
 
         return  next_frame,step_reward,self.game_over
 
 
-def plot_rewards(rewards,title):
-    plt.figure(figsize=(10, 5))
-    plt.plot(rewards, label=title)
-    plt.xlabel('Episode')
-    plt.ylabel('Y')
-    plt.title('Training Progress')
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-            
 
-        
 
 
 
@@ -520,21 +519,32 @@ def plot_rewards(rewards,title):
 
 # RL logic
 
-class ANN_DQN(nn.Module):
-    def __init__(self, input_state_size:int,num_actions: int):
-        super(ANN_DQN, self).__init__()
+class CNN_DQN(nn.Module):
+    def __init__(self, input_channels: int, num_actions: int):
+        super(CNN_DQN, self).__init__()
 
-        
-
-        self.fc = nn.Sequential(
-            nn.Linear(input_state_size,128),
+        # Conv layers adapted for 80x60 input (after preprocessing)
+        self.conv = nn.Sequential(
+            nn.Conv2d(input_channels, 32, kernel_size=8, stride=2),   # [B, 32, 37, 27]
             nn.ReLU(),
-            
-            nn.Linear(128,num_actions)
+            nn.Conv2d(32, 64, kernel_size=4, stride=2),               # [B, 64, 17, 12]
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1),               # [B, 64, 15, 10]
+            nn.ReLU()
+        )
+
+        # Flatten size = 64*15*10 = 9600
+        self.fc = nn.Sequential(
+            nn.Linear(64 * 15 * 10, 256),
+            nn.ReLU(),
+            nn.Linear(256, num_actions)
         )
 
     def forward(self, x):
-        
+        # expect x in [0,255], normalize to [0,1]
+        x = x / 255.0
+        x = self.conv(x)
+        x = x.view(x.size(0), -1)  # flatten
         return self.fc(x)
 
 
@@ -548,8 +558,8 @@ class ReplayBuffer:
     def sample(self, batch_size):
         samples = random.sample(self.buffer, batch_size)
         states, actions, rewards, next_states, dones = zip(*samples)
-        states = np.array(states)
-        next_states = np.array(next_states)
+        states = np.stack(states)
+        next_states = np.stack(next_states)
         return (
             torch.tensor(states, dtype=torch.float,device=device),
             torch.tensor(actions, dtype=torch.long,device=device),
@@ -586,13 +596,11 @@ print("state tensor shape",state_tensor.shape)
 
 action_dim = len(game1.actions)
 
-print("action dim",action_dim)
-q_net = ANN_DQN( state_tensor.shape[2],action_dim).to(device)
-
-if not Train:
-    q_net.load_state_dict(torch.load('q_net_markANN.pth', map_location=device))
+q_net = CNN_DQN(state_dim[0], action_dim).to(device)
+#q_net.load_state_dict(torch.load('q_net_mark7.pth', map_location=device))
 #q_net.load_state_dict(torch.load('q_net_mark7.pth'),'weights_only = True')
-target_net = ANN_DQN( state_tensor.shape[2],action_dim).to(device)
+target_net = CNN_DQN(state_dim[0], action_dim).to(device)
+#target_net.load_state_dict(torch.load('q_net_mark7.pth', map_location=device))
 
 target_net.load_state_dict(q_net.state_dict())  # Copy weights
 target_net.eval()
@@ -600,14 +608,13 @@ target_net.eval()
 optimizer = optim.Adam(q_net.parameters(), lr=1e-3)
 buffer = ReplayBuffer(10000)
 
-batch_size = 64
+batch_size = 640
 gamma = 0.99
 epsilon = 1
-if not Train:
-    epsilon = 0.03
-epsilon_decay = 0.9995
+epsilon_decay = 0.995
 epsilon_min = 0.03
 target_update_freq = 10
+train_update_rate = 1
 
 '''
 let me update the game, so that we get rewards too. 
@@ -621,7 +628,8 @@ def select_action(state, epsilon):
     if random.random() < epsilon:
         return random.choice(game1.actions)
     else:
-        state = torch.tensor(np.array(state), dtype=torch.float,device=device).unsqueeze(0) #shape of [1,1,6]
+        state = torch.tensor(np.array(state), dtype=torch.float,device=device).unsqueeze(0)
+        
         with torch.no_grad():
             q_values = q_net(state)
         return q_values.argmax().item()
@@ -646,72 +654,87 @@ start = time.time()  # record start time
 
 
 for episode in range(num_episodes):
-    no_of_mouse = int(max(no_of_mouse*mouse_decay,mouse_min))
-    #no_of_mouse = max(int(epsilon*mouse_no_start),mouse_min)
-
+    #no_of_mouse = int(max(no_of_mouse*mouse_decay,mouse_min))
+    if running==False:
+        break
+    no_of_mouse = max(int(epsilon*mouse_no_start),mouse_min)
     frame_state = game1.reset(maze_new=False,no_of_mouse=no_of_mouse)
     total_reward = 0
 
-    if running==False:
-        break
+    
 
     for t in range(num_steps): #max 200 steps per episode
         
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                running = False        
+                
+                running = False     
+                break   
 
         action = select_action(frame_state,epsilon) #returns a number from 0,1,2,3
-
-
-
-
+        '''max_q = target_net(frame_state).max(1)[0]
+        q_max_vals.append(max_q)'''
 
         next_frame_state,reward,done = game1.step(action)
 
         with torch.no_grad():
-            state_tensor = torch.tensor(next_frame_state, dtype=torch.float, device=device)
-            state_tensor = state_tensor.view(1, -1)  # force shape [1, 6] for ANN
-            q_values = target_net(state_tensor)      # shape [1, 4]
-            max_q_next = q_values.max(1)[0].item()   # scalar
+            state_tensor = torch.tensor(np.array(next_frame_state), dtype=torch.float, device=device).unsqueeze(0)
+            max_q_next = target_net(state_tensor).max(1)[0].item()
             q_max_vals.append(max_q_next)
         
         buffer.push(frame_state,action,reward,next_frame_state,done)
 
         #uncomment them if you wanna see what the algorithm sees
         if debug:
-            print(frame_state)
-            time.sleep(2)
+
+            show_gray_scale_images(frame_state)   
+            with torch.no_grad():
+
+                
+                x1 = q_net.conv(torch.tensor(np.array(frame_state),dtype = torch.float,device = device).unsqueeze(0))
+                x2 = q_net.conv(torch.tensor(np.array(next_frame_state),dtype = torch.float,device = device).unsqueeze(0))
+                diff = (x1 - x2).abs().mean(dim=(0,2,3))  # mean change per channel
+                #print("Mean per-channel change:", diff)
+                # get top 5 changes
+                top_values, top_indices = torch.topk(diff, k=5)
+
+                print("Top 5 most changed channels:")
+                for i, (idx, val) in enumerate(zip(top_indices.tolist(), top_values.tolist()), 1):
+                    print(f"{i}. Channel {idx} → change = {val:.4f}")
+                    
+                y1 = q_net.forward(torch.tensor(np.array(frame_state),dtype = torch.float,device = device).unsqueeze(0))
+                y2 = q_net.forward(torch.tensor(np.array(next_frame_state),dtype = torch.float,device = device).unsqueeze(0))
+                print("forward for state",y1)
+                print("forward for next state",y2)
+
+                #print("cnn feature map x :",x1)
+                
             print("action taken",action)
-            print("reward",reward)
-            time.sleep(2)
-            print(next_frame_state)
+
+            
 
 
 
         frame_state= next_frame_state
+        stack = frame_state
+        '''print("Stack shape:", stack.shape)
+        print("Unique frames in stack (by hash):", len({f.tobytes() for f in stack}))'''
         total_reward +=reward
 
-        for _ in range(4):
-            if len(buffer) >= 5_00: #this is the only time the network gets trained
+        if len(buffer) >= batch_size:
+            for _ in range(train_update_rate): #this is the only time the network gets trained
                 states, actions, rewards, next_states, dones = buffer.sample(batch_size)
-                '''print('state shape',states.shape)
-                print('action shape',actions.shape)
-                print('actions',actions)
                 
-                print("q_net(states).shape =", q_net(states).squeeze(1).shape)
-                print("actions.unsqueeze(1).shape =", actions.unsqueeze(1).shape)'''
-
                 
                 # Compute current Q values
-                q_values = q_net(states).squeeze(1).gather(1, actions.unsqueeze(1)).squeeze(1)
+                q_values = q_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)
                 #print(q_values.mean().item())
 
                 
                 # Compute target Q values
                 with torch.no_grad():
-                    max_next_q_values = target_net(next_states).squeeze(1).max(1)[0]
-
+                    max_next_q_values = target_net(next_states).max(1)[0]
+                    
                     targets = rewards + gamma * max_next_q_values * (1 - dones)
                 
                 loss = nn.SmoothL1Loss()(q_values, targets)
@@ -750,8 +773,9 @@ print(f"Execution time: {end - start:.4f} seconds")
 plot_rewards(episode_rewards,'total reward per episode')
 plot_rewards(no_steps_alive,'no of steps survived per episode')
 plot_rewards(epsilon_vals,'epsilon vals in an episode')
-plot_rewards(q_max_vals,'qmax vals at each state')
-torch.save(q_net.state_dict(), "q_net_markANN.pth")
+plot_rewards(q_max_vals,'qmax values at different states')
+
+torch.save(q_net.state_dict(), "q_net_mark70.pth")
 
 print("brooo",len(frame_state))
 #print(frame_state[-1]/255.0)
@@ -761,6 +785,15 @@ print(unique)
 
 
 print("shape of the frame_state",frame_state.shape)
+'''show_gray_scale_images(frame_state)
+show_gray_scale_image(frame_state[1])
+show_gray_scale_image(frame_state[2])
+show_gray_scale_image(frame_state[3])'''
+show_gray_scale_images(frame_state)
+
+stack = frame_state
+print("Stack shape:", stack.shape)
+print("Unique frames in stack (by hash):", len({f.tobytes() for f in stack}))
 
 
 

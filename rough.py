@@ -1,20 +1,52 @@
-import torch
-print("CUDA available:", torch.cuda.is_available())
-print("GPU name:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None")
+class WordDictionary:
 
-frame_skip = 2
+    class TrieNode:
+        def __init__(self):
+            self.data = {}
+            self.is_word = False
 
-for i in range(1,frame_skip+1):
-    if i%(frame_skip) == 0:
-        print(i)
-    rough = i
+    def __init__(self):
+        self.root = self.TrieNode()
+        
 
-print("last",rough)
+    def addWord(self, word: str) -> None:
+        node = self.root
+        for char in word:
+            if char not in node.data:
+                node.data[char]=self.TrieNode()
+            
+            node = node.data[char]
+        node.status = True
+        
 
-dist = None
+    def search(self, word: str) -> bool:
 
-for i in range(3):
-    dist_min  = None
+        self.is_found = False
 
-    if dist_min<= dist:
-        print("this runs")
+        node = self.root
+        def dfs(node,word_sub):
+
+
+            char = word_sub[0]
+            if len(word_sub)==1:
+                if char in node.data and node.data[char].status:
+                    self.is_found = True
+                    return
+            if not node.data:
+                return
+
+            if char in node.data:
+                node = node.data[char]
+                dfs(node,word_sub[1:])
+            elif char == '.':
+                key_list = list(node.data.keys())
+                for key in key_list:
+                    dfs(node.data[key],word_sub[1:])
+            
+        dfs(node,word)
+        return self.is_found
+
+
+        
+listt = ''
+print(listt[0])

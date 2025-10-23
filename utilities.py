@@ -17,13 +17,13 @@ mouse_size = (18,18)
 mouse_color = (80,80,80)
 
 snake_color = (250,250,250)
-screen_bg = (10,20,150)
+screen_bg = (10,20,10)
 screen_height = 600
 screen_width = 800
 
 
 maze_state = 40
-wall_color = (50,50,50)
+wall_color = (150,150,150)
 wall_lengths = (50,80,100)
 wall_width = 20
 available_walls = ((80,20),(100,20),(50,20),(20,50),(20,70),(20,90))
@@ -252,8 +252,7 @@ class snake(pygame.sprite.Sprite):
                 center = self.snake_units.sprites()[0].rect.center
             )
             
-        else:
-            return
+        
             
 
         m = self.move_forward()
@@ -308,3 +307,4 @@ def get_mouse():
     return mouse(pos)
 
 
+#######################################################

@@ -251,8 +251,7 @@ class snake(pygame.sprite.Sprite):
                         center = self.snake_units.sprites()[0].rect.center
                     )
                    
-                else:
-                    return
+                
             
 
         self.move_forward()

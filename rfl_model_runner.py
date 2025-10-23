@@ -19,14 +19,16 @@ import torch.nn.functional as F
 global running
 
 #training settings
-maze_yes = False
+maze_yes = True
 increase_snake_length = False
+debug = True
+over_pass_allowed = False
 
 
 global skip_frame
-skip_frame = 2
+skip_frame = 4
 render = True
-no_of_moved_away_allowed = 10
+no_of_moved_away_allowed = 40
 
 
 
@@ -51,7 +53,6 @@ division_ratio = 1 # experimental, change it later on
 division_length = int(max(wall_lengths)/division_ratio) # so that we have maximum walls fit in
 
 
-collision_threshold = 10
 
 player_score = 0
 
@@ -377,7 +378,7 @@ class snake_game:
                 screen.fill(screen_bg)
 
                 #update the snake
-                self.snake.update_snake(action)
+                rolled_over = self.snake.update_snake(action)
 
                 #draw
                 '''self.all_sprites.draw(screen)
@@ -408,13 +409,20 @@ class snake_game:
 
 
                 
+#check if the snake crossed over the screen
+                if not over_pass_allowed:
+                    
+
+                    if rolled_over:
+                        reward +=-15
+                        self.game_over = True                
                 if diff < 0:
                     #it went closer
-                    reward +=0.4
+                    reward +=1
                     #print("moved closer")
                     
                 elif diff>0:
-                    reward +=-0.4
+                    reward +=-1
 
                     self.moved_away +=1
 
@@ -535,9 +543,9 @@ class CNN_DQN(nn.Module):
         )
 
         self.fc = nn.Sequential(
-            nn.Linear(64 * 6 * 4, 512),
+            nn.Linear(64 * 6 * 4, 256),
             nn.ReLU(),
-            nn.Linear(512, 256),
+            nn.Linear(256, 256),
             nn.ReLU(),
             nn.Linear(256,num_actions)
         )
@@ -598,7 +606,7 @@ print("state tensor shape",state_tensor.shape)
 action_dim = len(game1.actions)
 
 q_net = CNN_DQN(state_dim[0], action_dim).to(device)
-q_net.load_state_dict(torch.load('q_net_mark10.pth', map_location=device))
+#q_net.load_state_dict(torch.load('q_net_mark10.pth', map_location=device))
 #q_net.load_state_dict(torch.load('q_net_mark7.pth'),'weights_only = True')
 target_net = CNN_DQN(state_dim[0], action_dim).to(device)
 
@@ -610,10 +618,10 @@ buffer = ReplayBuffer(10000)
 
 batch_size = 64
 gamma = 0.99
-epsilon = 0.05
+epsilon = 1
 epsilon_decay = 0.9995
 epsilon_min = 0.03
-target_update_freq = 20
+target_update_freq = 10
 
 '''
 let me update the game, so that we get rewards too. 
@@ -628,17 +636,18 @@ def select_action(state, epsilon):
         return random.choice(game1.actions)
     else:
         state = torch.tensor(np.array(state), dtype=torch.float,device=device).unsqueeze(0)
+        print("state shape",state.shape)
         with torch.no_grad():
             q_values = q_net(state)
         return q_values.argmax().item()
     
 
-mouse_no_start = 20
+mouse_no_start = 1
 mouse_decay = 0.9995
 mouse_min = 1
 no_of_mouse = mouse_no_start
 
-num_episodes = 4000
+num_episodes = 3000
 num_steps = 200
 episode_rewards = []
 no_steps_alive = []
@@ -668,24 +677,45 @@ for episode in range(num_episodes):
 
         action = select_action(frame_state,epsilon) #returns a number from 0,1,2,3
 
-
-
-
-
         next_frame_state,reward,done = game1.step(action)
         buffer.push(frame_state,action,reward,next_frame_state,done)
 
         #uncomment them if you wanna see what the algorithm sees
-        '''show_gray_scale_images(frame_state)   
-        print("action taken",action)
-        show_gray_scale_images(next_frame_state)'''
+        if debug:
+
+            show_gray_scale_images(frame_state)   
+            with torch.no_grad():
+
+                
+                x1 = q_net.conv(torch.tensor(np.array(frame_state),dtype = torch.float,device = device).unsqueeze(0))
+                x2 = q_net.conv(torch.tensor(np.array(next_frame_state),dtype = torch.float,device = device).unsqueeze(0))
+                diff = (x1 - x2).abs().mean(dim=(0,2,3))  # mean change per channel
+                #print("Mean per-channel change:", diff)
+                # get top 5 changes
+                top_values, top_indices = torch.topk(diff, k=5)
+
+                print("Top 5 most changed channels:")
+                for i, (idx, val) in enumerate(zip(top_indices.tolist(), top_values.tolist()), 1):
+                    print(f"{i}. Channel {idx} → change = {val:.4f}")
+                    
+                y1 = q_net.forward(torch.tensor(np.array(frame_state),dtype = torch.float,device = device).unsqueeze(0))
+                y2 = q_net.forward(torch.tensor(np.array(next_frame_state),dtype = torch.float,device = device).unsqueeze(0))
+                print("forward for state",y1)
+                print("forward for next state",y2)
+
+                #print("cnn feature map x :",x1)
+                
+            print("action taken",action)
+
+            
+
 
 
         frame_state= next_frame_state
         total_reward +=reward
 
-        if t %2  ==0:
-            if len(buffer) >= 5_00: #this is the only time the network gets trained
+        if len(buffer) >= 5_00:
+            for _ in range(4): #this is the only time the network gets trained
                 states, actions, rewards, next_states, dones = buffer.sample(batch_size)
                 
                 
@@ -706,9 +736,9 @@ for episode in range(num_episodes):
                 
                 optimizer.step()
 
-            if done:
-                no_steps_alive.append(t)
-                break
+        if done:
+            no_steps_alive.append(t)
+            break
     epsilon_vals.append(epsilon)
 
     # Update epsilon
@@ -736,7 +766,7 @@ plot_rewards(episode_rewards,'total reward per episode')
 plot_rewards(no_steps_alive,'no of steps survived per episode')
 plot_rewards(epsilon_vals,'epsilon vals in an episode')
 
-torch.save(q_net.state_dict(), "q_net_mark10.pth")
+torch.save(q_net.state_dict(), "q_net_mark2.pth")
 
 print("brooo",len(frame_state))
 #print(frame_state[-1]/255.0)
