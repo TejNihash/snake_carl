@@ -8,13 +8,13 @@ import matplotlib.pyplot as plt
 from collections import deque
 import cv2
 
-snake_unit_width = 14
-snake_unit_length = 18
+snake_unit_width = 6
+snake_unit_length = 9
 snake_dirs = (0,1,2,3) #0 for north, 1 for east, 2 for south, 3 for west
-snake_speed = 0.7*snake_unit_length #I want snake to move half it's length in a time step
+snake_speed = 0.6*snake_unit_length #I want snake to move half it's length in a time step
 
-mouse_size = (20,20)
-mouse_color = (80,80,80)
+mouse_size = (10,10)
+mouse_color = (90,90,90)
 
 snake_color = (250,250,250)
 screen_bg = (10,20,10)
@@ -24,9 +24,9 @@ screen_width = 200
 
 maze_state = 40
 wall_color = (150,150,150)
-wall_lengths = (50,80,100)
+wall_lengths = (10,16,20)
 wall_width = 20
-available_walls = ((80,20),(100,20),(50,20),(20,50),(20,70),(20,90))
+available_walls = ((10,5),(25,5),(17,5),(5,10),(5,25),(5,14))
 directions = ("H","V")
 division_ratio = 1 # experimental, change it later on
 division_length = int(max(wall_lengths)/division_ratio) # so that we have maximum walls fit in

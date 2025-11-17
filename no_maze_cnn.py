@@ -20,7 +20,7 @@ global running
 
 
 #training settings
-maze_yes = False
+maze_yes = True
 increase_snake_length = False
 debug = False
 over_pass_allowed = False
@@ -29,17 +29,19 @@ over_pass_allowed = False
 global skip_frame
 skip_frame = 2
 render = True
-no_of_moved_away_allowed = 80
+no_of_moved_away_allowed = 150
 no_of_frames_in_stack = 2 #no diff frame
 
+num_episodes= 5000
+num_steps = 200
 
 
 screen_bg = (10,20,15)
 screen_height = 150
 screen_width = 200
 
-wall_lengths = (50,80,100)
-division_ratio = 1 # experimental, change it later on
+wall_lengths = (10,16,20)
+division_ratio = 0.8 # change to it increase or decrease the maze complexity
 division_length = int(max(wall_lengths)/division_ratio) # so that we have maximum walls fit in
 
 
@@ -266,7 +268,7 @@ class snake_game:
 
 
 
-    def reset(self,maze_new = True,no_of_mouse = 20):
+    def reset(self,maze_new = True,no_of_mouse = 1):
         self.pause = False
         self.running = True
         self.game_over = False
@@ -453,7 +455,7 @@ class snake_game:
                 if maze_yes:
                     hit_list1 = pygame.sprite.spritecollide(self.snake.snake_units.sprites()[0],self.wall_sprites_group,dokill=False)
                     if hit_list1 :
-                        reward += -3
+                        reward += -2
                         
                         self.game_over = True
                     
@@ -500,22 +502,38 @@ class snake_game:
 # RL logic
 
 class CNN_DQN(nn.Module):
-    def __init__(self, input_channels: int, num_actions: int):
+    def __init__(self, input_channels: int, num_actions: int,pool_out=(6, 8)):
         super(CNN_DQN, self).__init__()
 
         # Conv layers adapted for 80x60 input (after preprocessing)
         self.conv = nn.Sequential(
-            nn.Conv2d(input_channels, 32, kernel_size=8, stride=4),   # [B, 32, 37, 27]
+            nn.Conv2d(input_channels, 32, kernel_size=3, stride=2,padding=1),   # [B, 32, 37, 27]
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2),               # [B, 64, 17, 12]
+            nn.Conv2d(32, 64, kernel_size=3, stride=2,padding=1),               # [B, 64, 17, 12]
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1),               # [B, 64, 15, 10]
-            nn.ReLU()
+            nn.Conv2d(64, 64, kernel_size=3, stride=1,padding=1),               # [B, 64, 15, 10]
+            nn.ReLU(),
+
+            # more context, still keep resolution -> [B, 64, 38, 50]
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
         )
+
+        # normalize resolution to a fixed size
+        self.adaptive_pool = nn.AdaptiveAvgPool2d(pool_out)
+
+        # Compute FC layer input size dynamically
+        with torch.no_grad():
+            dummy = torch.zeros(1, input_channels, 150, 200)
+            dummy_out = self.adaptive_pool(self.conv(dummy))
+            self.flat = dummy_out.numel()
+
+
+        
 
         # Flatten size = 64*15*10 = 9600
         self.fc = nn.Sequential(
-            nn.Linear(64 * 15 * 21, 512),
+            nn.Linear(self.flat, 512),
             nn.ReLU(),
             nn.Linear(512, num_actions)
         )
@@ -524,6 +542,7 @@ class CNN_DQN(nn.Module):
         # expect x in [0,255], normalize to [0,1]
         x = x / 255.0
         x = self.conv(x)
+        x = self.adaptive_pool(x)
         x = x.view(x.size(0), -1)  # flatten
         return self.fc(x)
 
@@ -577,7 +596,7 @@ print("state tensor shape",state_tensor.shape)
 action_dim = len(game1.actions)
 
 q_net = CNN_DQN(state_dim[0], action_dim).to(device)
-#q_net.load_state_dict(torch.load('q_net_cnn_m2.pth', map_location=device))
+q_net.load_state_dict(torch.load('q_net_cnn_m9dash.pth', map_location=device))
 #q_net.load_state_dict(torch.load('q_net_mark7.pth'),'weights_only = True')
 target_net = CNN_DQN(state_dim[0], action_dim).to(device)
 #target_net.load_state_dict(torch.load('q_net_mark7.pth', map_location=device))
@@ -592,7 +611,7 @@ buffer = ReplayBuffer(50000)
 
 batch_size = 32
 gamma = 0.99
-epsilon = 1
+epsilon = 0.03
 epsilon_decay = 0.997
 epsilon_min = 0.03
 target_update_freq = 10
@@ -624,13 +643,12 @@ def select_action(state, epsilon):
         return q_values.argmax().item()
     
 
-mouse_no_start = 1
-mouse_decay = 0.9995
+mouse_no_start = 5
+mouse_decay = 0.9999
 mouse_min = 1
 no_of_mouse = mouse_no_start
 
-num_episodes = 2000
-num_steps = 150
+
 
 step_count = 0
 episode_rewards = []
@@ -772,7 +790,7 @@ plot_rewards(no_steps_alive,'no of steps survived per episode')
 plot_rewards(epsilon_vals,'epsilon vals in an episode')
 plot_rewards(q_max_vals,'qmax values at different states')
 
-torch.save(q_net.state_dict(), "q_net_cnn_m3.pth")
+torch.save(q_net.state_dict(), "q_net_cnn_m9dash.pth")
 
 print("brooo",len(frame_state))
 #print(frame_state[-1]/255.0)
