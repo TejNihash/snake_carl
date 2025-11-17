@@ -201,13 +201,13 @@ class snake_game:
         
 
         if ds ==0:
-            return (dx,dy,1,0,0,0)
+            return (dx,dy)#,1,0,0,0)
         elif ds ==1:
-            return (dx,dy,0,1,0,0)
+            return (dx,dy)#,0,1,0,0)
         elif ds ==2:
-            return (dx,dy,0,0,1,0)
+            return (dx,dy)#,0,0,1,0)
         elif ds ==3:
-            return (dx,dy,0,0,0,1)
+            return (dx,dy)#,0,0,0,1)
     def get_mouse_snake_dist(self):
         x1,y1 = self.snake.snake_units.sprites()[0].rect.x,self.snake.snake_units.sprites()[0].rect.y
         x2,y2 = self.mouse_sprites_group.sprites()[0].rect.x,self.mouse_sprites_group.sprites()[0].rect.y
@@ -590,7 +590,7 @@ print("action dim",action_dim)
 q_net = ANN_DQN( state_tensor.shape[2],action_dim).to(device)
 
 if not Train:
-    q_net.load_state_dict(torch.load('q_net_markANN.pth', map_location=device))
+    q_net.load_state_dict(torch.load('q_net_ann_mark2.pth', map_location=device))
 #q_net.load_state_dict(torch.load('q_net_mark7.pth'),'weights_only = True')
 target_net = ANN_DQN( state_tensor.shape[2],action_dim).to(device)
 
@@ -628,12 +628,12 @@ def select_action(state, epsilon):
     
 
 mouse_no_start = 1
-mouse_decay = 0.9995
+mouse_decay = 0.995
 mouse_min = 1
 no_of_mouse = mouse_no_start
 
-num_episodes = 600
-num_steps = 100
+num_episodes = 2000
+num_steps = 200
 episode_rewards = []
 no_steps_alive = []
 epsilon_vals = []
@@ -664,10 +664,12 @@ for episode in range(num_episodes):
         action = select_action(frame_state,epsilon) #returns a number from 0,1,2,3
 
 
-
-
-
         next_frame_state,reward,done = game1.step(action)
+
+        if not Train:
+            frame_state= next_frame_state
+
+            continue
 
         with torch.no_grad():
             state_tensor = torch.tensor(next_frame_state, dtype=torch.float, device=device)
@@ -724,6 +726,9 @@ for episode in range(num_episodes):
         if done:
             no_steps_alive.append(t)
             break
+
+    if not Train:
+        continue
     epsilon_vals.append(epsilon)
 
     # Update epsilon
@@ -751,7 +756,9 @@ plot_rewards(episode_rewards,'total reward per episode')
 plot_rewards(no_steps_alive,'no of steps survived per episode')
 plot_rewards(epsilon_vals,'epsilon vals in an episode')
 plot_rewards(q_max_vals,'qmax vals at each state')
-torch.save(q_net.state_dict(), "q_net_markANN.pth")
+
+if Train:
+    torch.save(q_net.state_dict(), "q_net_ann_mark2.pth")
 
 print("brooo",len(frame_state))
 #print(frame_state[-1]/255.0)

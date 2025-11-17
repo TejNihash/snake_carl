@@ -18,6 +18,7 @@ import torch.nn.functional as F
 
 global running
 
+
 #training settings
 maze_yes = False
 increase_snake_length = False
@@ -28,29 +29,16 @@ over_pass_allowed = False
 global skip_frame
 skip_frame = 2
 render = True
-no_of_moved_away_allowed = 40
+no_of_moved_away_allowed = 80
 no_of_frames_in_stack = 2 #no diff frame
 
 
 
-
-snake_unit_width = 8
-snake_unit_length = 10
-snake_dirs = (0,1,2,3) #0 for north, 1 for east, 2 for south, 3 for west
-snake_speed = 0.5*snake_unit_length #I want snake to move half it's length in a time step
-
-mouse_size = (16,16)
-mouse_color = (10,250,10)
-
-snake_color = (250,20,20)
 screen_bg = (10,20,15)
-screen_height = 600
-screen_width = 800
+screen_height = 150
+screen_width = 200
 
-wall_color = (50,50,50)
 wall_lengths = (50,80,100)
-wall_width = 240
-directions = ("H","V")
 division_ratio = 1 # experimental, change it later on
 division_length = int(max(wall_lengths)/division_ratio) # so that we have maximum walls fit in
 
@@ -74,14 +62,6 @@ clock = pygame.time.Clock()
 
 
 
-
-
-
-
-
-
-
-
 # let's addd the image capturing and preprocessing here.
 
 
@@ -97,7 +77,7 @@ def get_pygame_frame(screen):
     return frame
 
 
-def preprocess_frame(frame,shape = (80,60)):
+def preprocess_frame(frame,shape = (200,150)):
     #take in a frame of pygame convert it to grey scale and resize it. 
     gray = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)   #shape : (H,W)
     
@@ -424,7 +404,7 @@ class snake_game:
                     #print("moved closer")
                     
                 elif diff>0:
-                    reward +=-0.1
+                    reward +=-0.2
 
                     self.moved_away +=1
 
@@ -443,7 +423,7 @@ class snake_game:
                     if increase_snake_length:
                         self.snake.add_link()
                     self.player_score+=1
-                    reward +=3
+                    reward +=1
                     
                     
 
@@ -500,7 +480,7 @@ class snake_game:
 
                 executed = True
 
-                step_reward = (step_reward*i + reward)/(i+1)
+                step_reward +=reward
                 
                 if self.game_over:
                     break
@@ -525,7 +505,7 @@ class CNN_DQN(nn.Module):
 
         # Conv layers adapted for 80x60 input (after preprocessing)
         self.conv = nn.Sequential(
-            nn.Conv2d(input_channels, 32, kernel_size=8, stride=2),   # [B, 32, 37, 27]
+            nn.Conv2d(input_channels, 32, kernel_size=8, stride=4),   # [B, 32, 37, 27]
             nn.ReLU(),
             nn.Conv2d(32, 64, kernel_size=4, stride=2),               # [B, 64, 17, 12]
             nn.ReLU(),
@@ -535,9 +515,9 @@ class CNN_DQN(nn.Module):
 
         # Flatten size = 64*15*10 = 9600
         self.fc = nn.Sequential(
-            nn.Linear(64 * 15 * 10, 256),
+            nn.Linear(64 * 15 * 21, 512),
             nn.ReLU(),
-            nn.Linear(256, num_actions)
+            nn.Linear(512, num_actions)
         )
 
     def forward(self, x):
@@ -597,7 +577,7 @@ print("state tensor shape",state_tensor.shape)
 action_dim = len(game1.actions)
 
 q_net = CNN_DQN(state_dim[0], action_dim).to(device)
-#q_net.load_state_dict(torch.load('q_net_mark7.pth', map_location=device))
+#q_net.load_state_dict(torch.load('q_net_cnn_m2.pth', map_location=device))
 #q_net.load_state_dict(torch.load('q_net_mark7.pth'),'weights_only = True')
 target_net = CNN_DQN(state_dim[0], action_dim).to(device)
 #target_net.load_state_dict(torch.load('q_net_mark7.pth', map_location=device))
@@ -605,16 +585,25 @@ target_net = CNN_DQN(state_dim[0], action_dim).to(device)
 target_net.load_state_dict(q_net.state_dict())  # Copy weights
 target_net.eval()
 
-optimizer = optim.Adam(q_net.parameters(), lr=1e-3)
-buffer = ReplayBuffer(10000)
 
-batch_size = 640
+lr = 1e-3
+optimizer = optim.Adam(q_net.parameters(), lr=1e-3)
+buffer = ReplayBuffer(50000)
+
+batch_size = 32
 gamma = 0.99
 epsilon = 1
-epsilon_decay = 0.995
+epsilon_decay = 0.997
 epsilon_min = 0.03
 target_update_freq = 10
 train_update_rate = 1
+
+
+train_start = 2000   # don't train until this many samples
+train_freq_steps = 1
+train_iters = 1      # iterations per training call
+target_update_steps = 1000  # update target network every N steps (not episodes)
+gamma = 0.99
 
 '''
 let me update the game, so that we get rewards too. 
@@ -640,8 +629,10 @@ mouse_decay = 0.9995
 mouse_min = 1
 no_of_mouse = mouse_no_start
 
-num_episodes = 600
-num_steps = 100
+num_episodes = 2000
+num_steps = 150
+
+step_count = 0
 episode_rewards = []
 no_steps_alive = []
 epsilon_vals = []
@@ -676,6 +667,8 @@ for episode in range(num_episodes):
         q_max_vals.append(max_q)'''
 
         next_frame_state,reward,done = game1.step(action)
+
+        step_count +=1*skip_frame
 
         with torch.no_grad():
             state_tensor = torch.tensor(np.array(next_frame_state), dtype=torch.float, device=device).unsqueeze(0)
@@ -741,7 +734,7 @@ for episode in range(num_episodes):
                 
                 optimizer.zero_grad()
                 loss.backward()
-                
+                nn.utils.clip_grad_norm_(q_net.parameters(), 10.0)
                 optimizer.step()
 
         if done:
@@ -754,7 +747,7 @@ for episode in range(num_episodes):
     
 
     # Update target network
-    if episode % target_update_freq == 0:
+    if step_count % target_update_steps == 0:
         target_net.load_state_dict(q_net.state_dict())
 
     total_reward = round(total_reward,3)
@@ -770,12 +763,16 @@ for episode in range(num_episodes):
 end = time.time()  # record end time
 print(f"Execution time: {end - start:.4f} seconds")
 
+
+print("Parameters:")
+print("lr =",lr," decay rate =",epsilon_decay," no.of steps =",num_steps," no.of episodes =",num_episodes)
+
 plot_rewards(episode_rewards,'total reward per episode')
 plot_rewards(no_steps_alive,'no of steps survived per episode')
 plot_rewards(epsilon_vals,'epsilon vals in an episode')
 plot_rewards(q_max_vals,'qmax values at different states')
 
-torch.save(q_net.state_dict(), "q_net_mark70.pth")
+torch.save(q_net.state_dict(), "q_net_cnn_m3.pth")
 
 print("brooo",len(frame_state))
 #print(frame_state[-1]/255.0)
