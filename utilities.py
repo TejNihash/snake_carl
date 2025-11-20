@@ -22,11 +22,11 @@ screen_height = 150
 screen_width = 200
 
 
-maze_state = 40
+maze_state = 46  #change this number to get different maze blocks
 wall_color = (150,150,150)
 wall_lengths = (10,16,20)
 wall_width = 20
-available_walls = ((10,5),(25,5),(17,5),(5,10),(5,25),(5,14))
+available_walls = ((13,5),(25,5),(17,5),(5,10),(5,25),(5,14))
 directions = ("H","V")
 division_ratio = 1 # experimental, change it later on
 division_length = int(max(wall_lengths)/division_ratio) # so that we have maximum walls fit in
@@ -45,6 +45,10 @@ class snake_unit(pygame.sprite.Sprite):
         self.rect  = self.image.get_rect()
         self.rect.topleft = (x,y)
 
+class ProxySprite(pygame.sprite.Sprite):
+    def __init__(self, rect):
+        super().__init__()
+        self.rect = rect
 
 class snake(pygame.sprite.Sprite):
     def __init__(self,name):
@@ -56,6 +60,8 @@ class snake(pygame.sprite.Sprite):
         self.snake_units_dir = []
 
     def initialize(self):
+        self.snake_units = pygame.sprite.Group()
+        self.snake_units_dir = []
         
 
         rand_dir = int(np.random.choice(snake_dirs))

@@ -58,6 +58,8 @@ class snake(pygame.sprite.Sprite):
         self.snake_units_dir = []
 
     def initilize(self):
+        self.snake_units = pygame.sprite.Group()
+        self.snake_units_dir = []
         
 
         rand_dir = int(np.random.choice(snake_dirs))
@@ -402,31 +404,38 @@ all_sprites = pygame.sprite.Group(snake1.snake_units,mousie,wall_sprites_group)
 running = True
 pause = False
 game_over = False
+
+
+clicked = False
 while running:
     
 
     #revise the events logic later on
     events = pygame.event.get()
+    
     for event in events:
         if event.type == pygame.QUIT:
             running = False
         if event.type ==pygame.KEYDOWN:
+            clicked = True
             if event.key == pygame.K_SPACE:
                 pause = not pause
 
 
         
     screen.fill(screen_bg)
-
-    
-
-
-
-    
-
-
     #draw
     all_sprites.draw(screen)
+    pygame.display.flip()
+
+
+    if not clicked:
+        #we continue if there was never a click.
+        
+        continue
+
+
+
 
     
 
@@ -494,14 +503,14 @@ while running:
 
     
     
-    clock.tick(60) #limit to 60 fps
+    clock.tick(30) #limit to 60 fps
 
 print(len(frame_states.state_stack))
 unique = np.unique(frame_states.state_stack[-1])
 print(unique)
 
 
-show_gray_scale_image(frame_states.state_stack[-1])
+#show_gray_scale_image(frame_states.state_stack[-1])
 
 
     

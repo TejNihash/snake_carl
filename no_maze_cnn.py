@@ -6,7 +6,7 @@ import time
 import matplotlib.pyplot as plt
 from collections import deque
 import cv2
-from utilities import snake
+from utilities import snake,ProxySprite
 from utilities import create_maze_sprites
 from utilities import get_mouse
 
@@ -25,6 +25,8 @@ increase_snake_length = False
 debug = False
 over_pass_allowed = False
 
+Train = True
+
 
 global skip_frame
 skip_frame = 2
@@ -41,7 +43,7 @@ screen_height = 150
 screen_width = 200
 
 wall_lengths = (10,16,20)
-division_ratio = 0.8 # change to it increase or decrease the maze complexity
+division_ratio = 0.6 # change to it increase or decrease the maze complexity
 division_length = int(max(wall_lengths)/division_ratio) # so that we have maximum walls fit in
 
 
@@ -60,6 +62,7 @@ if render:
     screen = pygame.display.set_mode((screen_width,screen_height))
 else:
     screen = pygame.Surface((screen_width,screen_height))
+
 clock = pygame.time.Clock()
 
 
@@ -239,10 +242,17 @@ class snake_game:
         while not proper:
             #loop over till we get a proper mouse and snake at initial position, we don't want them dead to begin with.for now, just mousie
 
+            hit_list1 = pygame.sprite.spritecollide(self.snake,self.wall_sprites_group,dokill = False)
+            if hit_list1:
+                #there is a hit, then we have to initialize snake again so it gets new dirs and coords
+                self.snake.initialize()
+                #print("bad snake op")
+                continue
+
+
+
 
             self.mousie = get_mouse()
-
-
             #collision detection for mouse and walls, so that we can get another mouse
             hit_list0 = pygame.sprite.spritecollide(self.mousie,self.wall_sprites_group,dokill=False)
             if hit_list0:
@@ -274,11 +284,27 @@ class snake_game:
         self.game_over = False
         self.moved_away = 0 
 
-        self.snake = snake("carl")
-        self.snake.initialize() #snake needs it's initilization right?
+
 
         if maze_new:  #make it a new maze only if it is needed.
             self.wall_sprites_group = self.create_wall_sprites()
+
+        self.snake = snake("carl")
+        self.snake.initialize() #snake needs it's initilization right?
+        proper_snake = False
+        while not proper_snake:
+            snake_threshold = 3
+            prox_rect = self.snake.snake_units.sprites()[0].rect.inflate(snake_threshold,snake_threshold)
+            snake_proxy = ProxySprite(prox_rect)
+            hit_list1 = pygame.sprite.spritecollide(snake_proxy,self.wall_sprites_group,dokill=False)
+            if hit_list1:
+                #there is a hit between snake and walls, so we initialize snake again
+                #print("bad snake spawn")
+                self.snake.initialize()
+                continue
+                
+            else:
+                break #break the while loop
 
         self.mouse_sprites_group =pygame.sprite.Group()
         if maze_yes:
@@ -293,6 +319,10 @@ class snake_game:
 
             while not proper:
                 new_mouse = get_mouse()
+
+
+
+
                 hit_list0 = pygame.sprite.spritecollide(new_mouse,self.all_sprites,dokill=False)
                 if hit_list0:
                     new_mouse.kill()
@@ -406,7 +436,7 @@ class snake_game:
                     #print("moved closer")
                     
                 elif diff>0:
-                    reward +=-0.2
+                    reward +=-0.15
 
                     self.moved_away +=1
 
@@ -425,7 +455,7 @@ class snake_game:
                     if increase_snake_length:
                         self.snake.add_link()
                     self.player_score+=1
-                    reward +=1
+                    reward +=3
                     
                     
 
@@ -435,7 +465,7 @@ class snake_game:
                         hit_list = pygame.sprite.spritecollide(new_mouse,self.all_sprites,False)
                         if hit_list:
                             new_mouse.kill()
-                            print("bad respawn")
+                            #print("bad respawn")
                             continue
                         proper = True
                         self.mouse_sprites_group.add(new_mouse)
@@ -596,7 +626,9 @@ print("state tensor shape",state_tensor.shape)
 action_dim = len(game1.actions)
 
 q_net = CNN_DQN(state_dim[0], action_dim).to(device)
-q_net.load_state_dict(torch.load('q_net_cnn_m9dash.pth', map_location=device))
+
+if not Train:
+    q_net.load_state_dict(torch.load('q_net_cnn_m9dash.pth', map_location=device),'weights_only = True')
 #q_net.load_state_dict(torch.load('q_net_mark7.pth'),'weights_only = True')
 target_net = CNN_DQN(state_dim[0], action_dim).to(device)
 #target_net.load_state_dict(torch.load('q_net_mark7.pth', map_location=device))
@@ -606,14 +638,17 @@ target_net.eval()
 
 
 lr = 1e-3
-optimizer = optim.Adam(q_net.parameters(), lr=1e-3)
+optimizer = optim.Adam(q_net.parameters(), lr=5e-3)
 buffer = ReplayBuffer(50000)
 
 batch_size = 32
 gamma = 0.99
-epsilon = 0.03
+
+epsilon = 1
+if not Train:
+    epsilon = 0.05
 epsilon_decay = 0.997
-epsilon_min = 0.03
+epsilon_min = 0.05
 target_update_freq = 10
 train_update_rate = 1
 
@@ -664,6 +699,7 @@ start = time.time()  # record start time
 
 for episode in range(num_episodes):
     #no_of_mouse = int(max(no_of_mouse*mouse_decay,mouse_min))
+
     if running==False:
         break
     no_of_mouse = max(int(epsilon*mouse_no_start),mouse_min)
@@ -673,6 +709,10 @@ for episode in range(num_episodes):
     
 
     for t in range(num_steps): #max 200 steps per episode
+
+        if not Train:
+            clock.tick(10)
+
         
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -685,6 +725,14 @@ for episode in range(num_episodes):
         q_max_vals.append(max_q)'''
 
         next_frame_state,reward,done = game1.step(action)
+
+        if not Train:
+            frame_state= next_frame_state
+            if done:
+                break
+
+            continue
+
 
         step_count +=1*skip_frame
 
@@ -758,6 +806,11 @@ for episode in range(num_episodes):
         if done:
             no_steps_alive.append(t)
             break
+
+
+    if not Train:
+        continue
+
     epsilon_vals.append(epsilon)
 
     # Update epsilon
@@ -790,7 +843,10 @@ plot_rewards(no_steps_alive,'no of steps survived per episode')
 plot_rewards(epsilon_vals,'epsilon vals in an episode')
 plot_rewards(q_max_vals,'qmax values at different states')
 
-torch.save(q_net.state_dict(), "q_net_cnn_m9dash.pth")
+
+if Train:
+
+    torch.save(q_net.state_dict(), "q_net_cnn_m11.pth")
 
 print("brooo",len(frame_state))
 #print(frame_state[-1]/255.0)
