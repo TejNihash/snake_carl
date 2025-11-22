@@ -8,10 +8,10 @@ import matplotlib.pyplot as plt
 from collections import deque
 import cv2
 
-snake_unit_width = 6
-snake_unit_length = 9
+snake_unit_width = 8
+snake_unit_length = 12
 snake_dirs = (0,1,2,3) #0 for north, 1 for east, 2 for south, 3 for west
-snake_speed = 0.6*snake_unit_length #I want snake to move half it's length in a time step
+snake_speed = 0.7*snake_unit_length #I want snake to move half it's length in a time step
 
 mouse_size = (10,10)
 mouse_color = (90,90,90)
@@ -22,7 +22,7 @@ screen_height = 150
 screen_width = 200
 
 
-maze_state = 46  #change this number to get different maze blocks
+maze_state = 40  #change this number to get different maze blocks
 wall_color = (150,150,150)
 wall_lengths = (10,16,20)
 wall_width = 20
@@ -147,6 +147,7 @@ class snake(pygame.sprite.Sprite):
             temp_coords = stored_coords
             temp_dir = stored_dir
 
+        #print((self.snake_units.sprites()[0].rect.x,self.snake_units.sprites()[0].rect.y))
         
 
         return roll_over

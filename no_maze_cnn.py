@@ -23,7 +23,7 @@ global running
 maze_yes = True
 increase_snake_length = False
 debug = False
-over_pass_allowed = False
+over_pass_allowed = True
 
 Train = True
 
@@ -34,7 +34,7 @@ render = True
 no_of_moved_away_allowed = 150
 no_of_frames_in_stack = 2 #no diff frame
 
-num_episodes= 5000
+num_episodes= 7000
 num_steps = 200
 
 
@@ -428,15 +428,16 @@ class snake_game:
                     
 
                     if rolled_over:
-                        reward +=-15
-                        self.game_over = True                
+                        reward +=-3
+                        self.game_over = True   
+
                 if diff < 0:
                     #it went closer
                     reward +=0.1
                     #print("moved closer")
                     
                 elif diff>0:
-                    reward +=-0.15
+                    reward +=-0.2
 
                     self.moved_away +=1
 
@@ -545,8 +546,8 @@ class CNN_DQN(nn.Module):
             nn.ReLU(),
 
             # more context, still keep resolution -> [B, 64, 38, 50]
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
+            #nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+            #nn.ReLU(),
         )
 
         # normalize resolution to a fixed size
@@ -628,8 +629,8 @@ action_dim = len(game1.actions)
 q_net = CNN_DQN(state_dim[0], action_dim).to(device)
 
 if not Train:
-    q_net.load_state_dict(torch.load('q_net_cnn_m9dash.pth', map_location=device),'weights_only = True')
-#q_net.load_state_dict(torch.load('q_net_mark7.pth'),'weights_only = True')
+    q_net.load_state_dict(torch.load('q_net_cnn_m11dash.pth', map_location=device),'weights_only = True')
+q_net.load_state_dict(torch.load('q_net_cnn_m11dash.pth', map_location=device),'weights_only = True')
 target_net = CNN_DQN(state_dim[0], action_dim).to(device)
 #target_net.load_state_dict(torch.load('q_net_mark7.pth', map_location=device))
 
@@ -637,17 +638,17 @@ target_net.load_state_dict(q_net.state_dict())  # Copy weights
 target_net.eval()
 
 
-lr = 1e-3
+lr = 3e-4
 optimizer = optim.Adam(q_net.parameters(), lr=5e-3)
 buffer = ReplayBuffer(50000)
 
 batch_size = 32
 gamma = 0.99
 
-epsilon = 1
+epsilon = 0.1
 if not Train:
     epsilon = 0.05
-epsilon_decay = 0.997
+epsilon_decay = 0.9995
 epsilon_min = 0.05
 target_update_freq = 10
 train_update_rate = 1
@@ -680,7 +681,7 @@ def select_action(state, epsilon):
 
 mouse_no_start = 5
 mouse_decay = 0.9999
-mouse_min = 1
+mouse_min = 2
 no_of_mouse = mouse_no_start
 
 
@@ -828,7 +829,7 @@ for episode in range(num_episodes):
     if not done:
         no_steps_alive.append(num_steps)
 
-    print(f"Episode {episode}, Total reward: {total_reward}, Epsilon: {epsilon:.3f}, no. of mouses: {no_of_mouse}, no.of steps survived:  {no_steps_alive[-1]}, time elapsed: {(time.time()-start)/60.0:.2f} mins")
+    print(f"Episode {episode}, Total reward: {total_reward}, Epsilon: {epsilon:.3f}, no. of mouses: {no_of_mouse}, no.of steps survived:  {no_steps_alive[-1]}, steps_so_far: {step_count}, time elapsed: {(time.time()-start)/60.0:.2f} mins")
 
 
 end = time.time()  # record end time
@@ -846,7 +847,7 @@ plot_rewards(q_max_vals,'qmax values at different states')
 
 if Train:
 
-    torch.save(q_net.state_dict(), "q_net_cnn_m11.pth")
+    torch.save(q_net.state_dict(), "q_net_cnn_m11dash.pth")
 
 print("brooo",len(frame_state))
 #print(frame_state[-1]/255.0)
