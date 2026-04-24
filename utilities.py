@@ -11,7 +11,7 @@ import cv2
 snake_unit_width = 8
 snake_unit_length = 12
 snake_dirs = (0,1,2,3) #0 for north, 1 for east, 2 for south, 3 for west
-snake_speed = 0.7*snake_unit_length #I want snake to move half it's length in a time step
+snake_speed = 0.3*snake_unit_length #I want snake to move half it's length in a time step
 
 mouse_size = (10,10)
 mouse_color = (90,90,90)

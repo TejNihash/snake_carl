@@ -619,7 +619,7 @@ buffer = ReplayBuffer(10000)
 batch_size = 64
 gamma = 0.99
 epsilon = 1
-epsilon_decay = 0.9995
+epsilon_decay = 0.997
 epsilon_min = 0.03
 target_update_freq = 10
 
@@ -766,7 +766,6 @@ plot_rewards(episode_rewards,'total reward per episode')
 plot_rewards(no_steps_alive,'no of steps survived per episode')
 plot_rewards(epsilon_vals,'epsilon vals in an episode')
 
-torch.save(q_net.state_dict(), "q_net_mark2.pth")
 
 print("brooo",len(frame_state))
 #print(frame_state[-1]/255.0)

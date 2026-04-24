@@ -1,3 +1,8 @@
+#This is a script which I use for rough
+
+
+
+
 class WordDictionary:
 
     class TrieNode:

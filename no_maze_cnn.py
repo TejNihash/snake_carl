@@ -16,6 +16,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+
+
 global running
 
 
@@ -25,16 +27,18 @@ increase_snake_length = False
 debug = False
 over_pass_allowed = True
 
-Train = True
+Train = False
+render = True
+
 
 
 global skip_frame
 skip_frame = 2
-render = True
-no_of_moved_away_allowed = 150
+
+no_of_moved_away_allowed = 130
 no_of_frames_in_stack = 2 #no diff frame
 
-num_episodes= 7000
+num_episodes= 10000
 num_steps = 200
 
 
@@ -84,12 +88,20 @@ def get_pygame_frame(screen):
 
 def preprocess_frame(frame,shape = (200,150)):
     #take in a frame of pygame convert it to grey scale and resize it. 
-    gray = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)   #shape : (H,W)
+    '''gray = cv2.cvtColor(frame,cv2.COLOR_RGB2GRAY)   #shape : (H,W)
     
     #binary = dominant_binarize(gray)
 
-    resized = cv2.resize(gray,shape,cv2.INTER_AREA)
-    return resized
+    resized = cv2.resize(gray,shape,cv2.INTER_AREA)'''
+
+    '''gray = frame.mean(axis=2).astype(np.uint8)
+    resized = gray[::2, ::2]   # downsample by 2
+
+    return resized'''
+
+    # Fast grayscale: Y = 0.2989 R + 0.5870 G + 0.1140 B
+    gray = np.dot(frame[...,:3], [0.2989, 0.5870, 0.1140]).astype(np.uint8)
+    return gray
 
 
 
@@ -263,7 +275,9 @@ class snake_game:
                 continue #so that we don't all the later stuff, just so we do it from here again.
 
             self.all_sprites = pygame.sprite.Group(self.snake.snake_units,self.mousie,self.wall_sprites_group)
-            pygame.display.flip()
+
+            if render:
+                pygame.display.flip()
 
             frame  = get_pygame_frame(screen)
             '''for _ in range(self.k):
@@ -403,12 +417,12 @@ class snake_game:
 
                 #we check for shit
 
-                if self.pause:
+                '''if self.pause:
                     text_surface = font.render(f'Pause!', True, text_color)
                     text_rect = text_surface.get_rect(center=(screen_width//2, screen_height//2))
                     screen.blit(text_surface, text_rect)
                     pygame.display.flip()
-                    continue
+                    continue'''
                 
                 #get the manhattan distance. if moved away, -0.5, else +0.5
                 # dist at t2 - dist at t1
@@ -456,7 +470,7 @@ class snake_game:
                     if increase_snake_length:
                         self.snake.add_link()
                     self.player_score+=1
-                    reward +=3
+                    reward +=10
                     
                     
 
@@ -504,7 +518,7 @@ class snake_game:
                 self.all_sprites.draw(screen)
 
                 if render:
-
+                    
                     pygame.display.update()
                     pygame.display.flip()
                 
@@ -519,9 +533,9 @@ class snake_game:
                     break
 
         frame = get_pygame_frame(screen)
-        next_frame = self.states.add(frame)
+        next_state = self.states.add(frame)
 
-        return  next_frame,step_reward,self.game_over
+        return  next_state,step_reward,self.game_over
 
 
 
@@ -538,9 +552,9 @@ class CNN_DQN(nn.Module):
 
         # Conv layers adapted for 80x60 input (after preprocessing)
         self.conv = nn.Sequential(
-            nn.Conv2d(input_channels, 32, kernel_size=3, stride=2,padding=1),   # [B, 32, 37, 27]
+            nn.Conv2d(input_channels, 32, kernel_size=6, stride=4,padding=1),   # [B, 32, 37, 27]
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, stride=2,padding=1),               # [B, 64, 17, 12]
+            nn.Conv2d(32, 64, kernel_size=4, stride=2,padding=1),               # [B, 64, 17, 12]
             nn.ReLU(),
             nn.Conv2d(64, 64, kernel_size=3, stride=1,padding=1),               # [B, 64, 15, 10]
             nn.ReLU(),
@@ -560,13 +574,11 @@ class CNN_DQN(nn.Module):
             self.flat = dummy_out.numel()
 
 
-        
-
         # Flatten size = 64*15*10 = 9600
         self.fc = nn.Sequential(
-            nn.Linear(self.flat, 512),
+            nn.Linear(self.flat, 256),
             nn.ReLU(),
-            nn.Linear(512, num_actions)
+            nn.Linear(256, num_actions)
         )
 
     def forward(self, x):
@@ -576,6 +588,43 @@ class CNN_DQN(nn.Module):
         x = self.adaptive_pool(x)
         x = x.view(x.size(0), -1)  # flatten
         return self.fc(x)
+    
+class CNN_DQN_Small(nn.Module):
+    def __init__(self, input_channels: int, num_actions: int, pool_out=(6, 8)):
+        super(CNN_DQN_Small, self).__init__()
+
+        # Two convolutional layers
+        self.conv = nn.Sequential(
+            nn.Conv2d(input_channels, 16, kernel_size=4, stride=2, padding=1),  # 16 channels
+            nn.ReLU(),
+            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),              # 32 channels
+            nn.ReLU()
+        )
+
+        # Adaptive pooling to normalize spatial size
+        self.adaptive_pool = nn.AdaptiveAvgPool2d(pool_out)
+
+        # Compute flattened size dynamically
+        with torch.no_grad():
+            dummy = torch.zeros(1, input_channels, 150, 200)  # new input size
+            dummy_out = self.adaptive_pool(self.conv(dummy))
+            self.flat = dummy_out.numel()
+
+        # Smaller FC layers
+        self.fc = nn.Sequential(
+            nn.Linear(self.flat, 512),
+            nn.ReLU(),
+            nn.Linear(512, num_actions)
+        )
+
+    def forward(self, x):
+        # normalize input to [0,1]
+        x = x / 255.0
+        x = self.conv(x)
+        x = self.adaptive_pool(x)
+        x = x.view(x.size(0), -1)
+        return self.fc(x)
+
 
 
 class ReplayBuffer:
@@ -604,7 +653,24 @@ class ReplayBuffer:
 #frame_states = frame_stack(100)
 
 
+'''
+let me update the game, so that we get rewards too. 
+normal move - 0
+touched wall = -3, game over
+ate mouse = +3, keep going
 
+'''
+
+def select_action(state, epsilon):
+    if random.random() < epsilon:
+        return random.choice(game1.actions)
+    else:
+        state = torch.tensor(np.array(state), dtype=torch.float,device=device).unsqueeze(0)
+        
+        with torch.no_grad():
+            q_values = q_net(state)
+        return q_values.argmax().item()
+    
 
 
 #game logic
@@ -629,8 +695,8 @@ action_dim = len(game1.actions)
 q_net = CNN_DQN(state_dim[0], action_dim).to(device)
 
 if not Train:
-    q_net.load_state_dict(torch.load('q_net_cnn_m11dash.pth', map_location=device),'weights_only = True')
-q_net.load_state_dict(torch.load('q_net_cnn_m11dash.pth', map_location=device),'weights_only = True')
+    q_net.load_state_dict(torch.load('q_net_cnn_mdash2.pth', map_location=device),'weights_only = True')
+#q_net.load_state_dict(torch.load('q_net_cnn_m11dash.pth', map_location=device),'weights_only = True')
 target_net = CNN_DQN(state_dim[0], action_dim).to(device)
 #target_net.load_state_dict(torch.load('q_net_mark7.pth', map_location=device))
 
@@ -638,17 +704,17 @@ target_net.load_state_dict(q_net.state_dict())  # Copy weights
 target_net.eval()
 
 
-lr = 3e-4
-optimizer = optim.Adam(q_net.parameters(), lr=5e-3)
+lr = 0.001
+optimizer = optim.Adam(q_net.parameters(), lr)
 buffer = ReplayBuffer(50000)
 
 batch_size = 32
 gamma = 0.99
 
-epsilon = 0.1
+epsilon = 1
 if not Train:
     epsilon = 0.05
-epsilon_decay = 0.9995
+epsilon_decay = 0.9997
 epsilon_min = 0.05
 target_update_freq = 10
 train_update_rate = 1
@@ -660,24 +726,8 @@ train_iters = 1      # iterations per training call
 target_update_steps = 1000  # update target network every N steps (not episodes)
 gamma = 0.99
 
-'''
-let me update the game, so that we get rewards too. 
-normal move - 0
-touched wall = -3, game over
-ate mouse = +3, keep going
 
-'''
 
-def select_action(state, epsilon):
-    if random.random() < epsilon:
-        return random.choice(game1.actions)
-    else:
-        state = torch.tensor(np.array(state), dtype=torch.float,device=device).unsqueeze(0)
-        
-        with torch.no_grad():
-            q_values = q_net(state)
-        return q_values.argmax().item()
-    
 
 mouse_no_start = 5
 mouse_decay = 0.9999
@@ -715,11 +765,11 @@ for episode in range(num_episodes):
             clock.tick(10)
 
         
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                
-                running = False     
-                break   
+        if render:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False     
+                    break   
 
         action = select_action(frame_state,epsilon) #returns a number from 0,1,2,3
         '''max_q = target_net(frame_state).max(1)[0]
@@ -770,9 +820,6 @@ for episode in range(num_episodes):
                 #print("cnn feature map x :",x1)
                 
             print("action taken",action)
-
-            
-
 
 
         frame_state= next_frame_state
@@ -829,6 +876,12 @@ for episode in range(num_episodes):
     if not done:
         no_steps_alive.append(num_steps)
 
+    if Train:
+        if episode%100==0:
+
+
+            torch.save(q_net.state_dict(), "q_net_cnn_mdash6.pth")
+
     print(f"Episode {episode}, Total reward: {total_reward}, Epsilon: {epsilon:.3f}, no. of mouses: {no_of_mouse}, no.of steps survived:  {no_steps_alive[-1]}, steps_so_far: {step_count}, time elapsed: {(time.time()-start)/60.0:.2f} mins")
 
 
@@ -847,7 +900,7 @@ plot_rewards(q_max_vals,'qmax values at different states')
 
 if Train:
 
-    torch.save(q_net.state_dict(), "q_net_cnn_m11dash.pth")
+    torch.save(q_net.state_dict(), "q_net_cnn_mdash6.pth")
 
 print("brooo",len(frame_state))
 #print(frame_state[-1]/255.0)
