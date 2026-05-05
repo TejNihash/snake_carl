@@ -22,12 +22,12 @@ global running
 
 
 #training settings
-maze_yes = True
+maze_yes = False
 increase_snake_length = False
 debug = False
 over_pass_allowed = True
 
-Train = False
+Train = True
 render = True
 
 
@@ -695,8 +695,8 @@ action_dim = len(game1.actions)
 q_net = CNN_DQN(state_dim[0], action_dim).to(device)
 
 if not Train:
-    q_net.load_state_dict(torch.load('q_net_cnn_mdash2.pth', map_location=device),'weights_only = True')
-#q_net.load_state_dict(torch.load('q_net_cnn_m11dash.pth', map_location=device),'weights_only = True')
+    q_net.load_state_dict(torch.load('q_net_cnn_mdash5.pth', map_location=device),'weights_only = True')
+q_net.load_state_dict(torch.load('q_net_cnn_mdash5.pth', map_location=device),'weights_only = True')
 target_net = CNN_DQN(state_dim[0], action_dim).to(device)
 #target_net.load_state_dict(torch.load('q_net_mark7.pth', map_location=device))
 
@@ -711,7 +711,7 @@ buffer = ReplayBuffer(50000)
 batch_size = 32
 gamma = 0.99
 
-epsilon = 1
+epsilon = 0.2
 if not Train:
     epsilon = 0.05
 epsilon_decay = 0.9997
@@ -762,7 +762,7 @@ for episode in range(num_episodes):
     for t in range(num_steps): #max 200 steps per episode
 
         if not Train:
-            clock.tick(10)
+            clock.tick(30)
 
         
         if render:
@@ -877,7 +877,7 @@ for episode in range(num_episodes):
         no_steps_alive.append(num_steps)
 
     if Train:
-        if episode%100==0:
+        if episode>0 and episode%100==0 :
 
 
             torch.save(q_net.state_dict(), "q_net_cnn_mdash6.pth")
