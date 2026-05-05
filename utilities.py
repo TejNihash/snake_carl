@@ -57,6 +57,7 @@ class snake(pygame.sprite.Sprite):
         self.unit_width = snake_unit_width
         self.speed = 5
         self.snake_units =  pygame.sprite.Group()
+        self.snake_body = pygame.sprite.Group()
         self.snake_units_dir = []
 
     def initialize(self):
@@ -165,7 +166,7 @@ class snake(pygame.sprite.Sprite):
             #make a new snake sprite element and also add the dir element
             self.snake_units.add(snake_unit(
                 self.snake_units.sprites()[-1].rect.x,
-                self.snake_units.sprites()[-1].rect.y + self.unit_length,
+                self.snake_units.sprites()[-1].rect.y + self.unit_length+2,
                 self.unit_width,
                 self.unit_length
                 
@@ -178,7 +179,7 @@ class snake(pygame.sprite.Sprite):
         elif self.snake_units_dir[-1]==1:
             #make a new snake sprite element and also add the dir element
             self.snake_units.add(snake_unit(
-                self.snake_units.sprites()[-1].rect.x-self.unit_length,
+                self.snake_units.sprites()[-1].rect.x-self.unit_length-2,
                 self.snake_units.sprites()[-1].rect.y,
                 self.unit_length,
                 self.unit_width
@@ -192,7 +193,7 @@ class snake(pygame.sprite.Sprite):
             #make a new snake sprite element and also add the dir element
             self.snake_units.add(snake_unit(
                 self.snake_units.sprites()[-1].rect.x,
-                self.snake_units.sprites()[-1].rect.y - self.unit_length,
+                self.snake_units.sprites()[-1].rect.y - self.unit_length-2,
                 self.unit_width,
                 self.unit_length
                 
@@ -204,7 +205,7 @@ class snake(pygame.sprite.Sprite):
         elif self.snake_units_dir[-1]==3:
             #make a new snake sprite element and also add the dir element
             self.snake_units.add(snake_unit(
-                self.snake_units.sprites()[-1].rect.x+self.unit_width,
+                self.snake_units.sprites()[-1].rect.x+self.unit_width+2,
                 self.snake_units.sprites()[-1].rect.y,
                 self.unit_length,
                 self.unit_width
@@ -214,6 +215,10 @@ class snake(pygame.sprite.Sprite):
 
         else:
             print(" you are not batman!")
+
+
+        self.body = self.snake_units.copy()
+        self.body.remove(self.snake_units.sprites()[0])
 
 
     def update_snake(self,action):

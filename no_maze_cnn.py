@@ -23,7 +23,10 @@ global running
 
 #training settings
 maze_yes = False
+
 increase_snake_length = False
+snake_bite = False
+
 debug = False
 over_pass_allowed = True
 
@@ -35,10 +38,10 @@ render = True
 global skip_frame
 skip_frame = 2
 
-no_of_moved_away_allowed = 130
+no_of_moved_away_allowed = 180
 no_of_frames_in_stack = 2 #no diff frame
 
-num_episodes= 10000
+num_episodes= 500
 num_steps = 200
 
 
@@ -234,6 +237,7 @@ class snake_game:
 
 
     def initialize(self):
+        print("jesus is ")
 
         self.pause = False
         self.running = True
@@ -287,12 +291,21 @@ class snake_game:
             proper = True
 
 
+
+        #self.body = self.snake.snake_units.copy()
+        print("hallelujah")
+        #self.body.remove(self.snake.snake_units.sprites()[0])
+        print("amen")
+
+
+
         return stacked_frame,self.game_over
 
 
 
 
     def reset(self,maze_new = True,no_of_mouse = 1):
+        print("life is a game")
         self.pause = False
         self.running = True
         self.game_over = False
@@ -371,6 +384,13 @@ class snake_game:
 
 
         proper = True
+
+
+        #self.body = self.snake.snake_units.copy()
+        print("hallelujah")
+        #self.body.remove(self.snake.snake_units.sprites()[0])
+        print("amen")
+
 
         return stacked_frame
 
@@ -513,6 +533,22 @@ class snake_game:
                     screen.blit(text_surface, text_rect)'''
                     '''pygame.display.flip()
                     continue'''
+
+                if snake_bite and len(self.snake.snake_units)>1:
+                    #snake eat itself = bad
+
+                    #check only if snake length greater than 1
+
+
+                    hit_list2 = pygame.sprite.spritecollide(self.snake.snake_units.sprites()[0],self.snake.body,dokill=False)
+                    if hit_list2:
+                        print("It ate itself")
+                        self.game_over = True
+
+                    
+                    
+
+
 
                 #update
                 self.all_sprites.draw(screen)
@@ -696,7 +732,7 @@ q_net = CNN_DQN(state_dim[0], action_dim).to(device)
 
 if not Train:
     q_net.load_state_dict(torch.load('q_net_cnn_mdash5.pth', map_location=device),'weights_only = True')
-q_net.load_state_dict(torch.load('q_net_cnn_mdash5.pth', map_location=device),'weights_only = True')
+#q_net.load_state_dict(torch.load('q_net_cnn_mdash8.pth', map_location=device),'weights_only = True')
 target_net = CNN_DQN(state_dim[0], action_dim).to(device)
 #target_net.load_state_dict(torch.load('q_net_mark7.pth', map_location=device))
 
@@ -711,10 +747,10 @@ buffer = ReplayBuffer(50000)
 batch_size = 32
 gamma = 0.99
 
-epsilon = 0.2
+epsilon = 1
 if not Train:
     epsilon = 0.05
-epsilon_decay = 0.9997
+epsilon_decay = 0.997
 epsilon_min = 0.05
 target_update_freq = 10
 train_update_rate = 1
@@ -880,7 +916,7 @@ for episode in range(num_episodes):
         if episode>0 and episode%100==0 :
 
 
-            torch.save(q_net.state_dict(), "q_net_cnn_mdash6.pth")
+            torch.save(q_net.state_dict(), "q_net_cnn_mdash8.pth")
 
     print(f"Episode {episode}, Total reward: {total_reward}, Epsilon: {epsilon:.3f}, no. of mouses: {no_of_mouse}, no.of steps survived:  {no_steps_alive[-1]}, steps_so_far: {step_count}, time elapsed: {(time.time()-start)/60.0:.2f} mins")
 
@@ -900,7 +936,7 @@ plot_rewards(q_max_vals,'qmax values at different states')
 
 if Train:
 
-    torch.save(q_net.state_dict(), "q_net_cnn_mdash6.pth")
+    torch.save(q_net.state_dict(), "q_net_cnn_mdash8.pth")
 
 print("brooo",len(frame_state))
 #print(frame_state[-1]/255.0)
