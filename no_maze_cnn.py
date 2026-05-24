@@ -30,7 +30,7 @@ snake_bite = False
 debug = False
 over_pass_allowed = True
 
-Train = True
+Train = False
 render = True
 
 
@@ -38,7 +38,7 @@ render = True
 global skip_frame
 skip_frame = 2
 
-no_of_moved_away_allowed = 180
+no_of_moved_away_allowed = 150
 no_of_frames_in_stack = 2 #no diff frame
 
 num_episodes= 500
@@ -199,6 +199,7 @@ class snake_game:
         self.mouse_snake_dist = None
         self.min_mouse_snake_dist = None
         self.moved_away = 0
+        self.prev_dir = 0
 
     def create_wall_sprites(self):
         wall_sprites_group = pygame.sprite.Group()
@@ -305,7 +306,7 @@ class snake_game:
 
 
     def reset(self,maze_new = True,no_of_mouse = 1):
-        print("life is a game")
+        #print("life is a game")
         self.pause = False
         self.running = True
         self.game_over = False
@@ -318,6 +319,8 @@ class snake_game:
 
         self.snake = snake("carl")
         self.snake.initialize() #snake needs it's initilization right?
+        self.prev_dir = self.snake.snake_units_dir[0]
+
         proper_snake = False
         while not proper_snake:
             snake_threshold = 3
@@ -387,9 +390,9 @@ class snake_game:
 
 
         #self.body = self.snake.snake_units.copy()
-        print("hallelujah")
+        #print("hallelujah")
         #self.body.remove(self.snake.snake_units.sprites()[0])
-        print("amen")
+        #print("amen")
 
 
         return stacked_frame
@@ -408,7 +411,7 @@ class snake_game:
         reward = 0
         for i in range(skip_frame):
             executed = False
-            reward += 0
+            reward += -0.1 #the existing reward. tells it to go faster to the reward
             while not executed and not self.game_over:
 
                 #revise the events logic later on
@@ -467,11 +470,11 @@ class snake_game:
 
                 if diff < 0:
                     #it went closer
-                    reward +=0.1
+                    reward +=0.2
                     #print("moved closer")
                     
                 elif diff>0:
-                    reward +=-0.2
+                    reward +=-0.1
 
                     self.moved_away +=1
 
@@ -570,6 +573,13 @@ class snake_game:
 
         frame = get_pygame_frame(screen)
         next_state = self.states.add(frame)
+
+        if action!= self.prev_dir:
+            #remove some from the reward. 
+            step_reward -= 0.2
+
+        self.prev_dir = action
+
 
         return  next_state,step_reward,self.game_over
 
@@ -731,7 +741,7 @@ action_dim = len(game1.actions)
 q_net = CNN_DQN(state_dim[0], action_dim).to(device)
 
 if not Train:
-    q_net.load_state_dict(torch.load('q_net_cnn_mdash5.pth', map_location=device),'weights_only = True')
+    q_net.load_state_dict(torch.load('q_net_cnn_mhash1.pth', map_location=device),'weights_only = True')
 #q_net.load_state_dict(torch.load('q_net_cnn_mdash8.pth', map_location=device),'weights_only = True')
 target_net = CNN_DQN(state_dim[0], action_dim).to(device)
 #target_net.load_state_dict(torch.load('q_net_mark7.pth', map_location=device))
@@ -766,7 +776,7 @@ gamma = 0.99
 
 
 mouse_no_start = 5
-mouse_decay = 0.9999
+mouse_decay = 0.99
 mouse_min = 2
 no_of_mouse = mouse_no_start
 
@@ -916,7 +926,7 @@ for episode in range(num_episodes):
         if episode>0 and episode%100==0 :
 
 
-            torch.save(q_net.state_dict(), "q_net_cnn_mdash8.pth")
+            torch.save(q_net.state_dict(), "q_net_cnn_mhash1.pth")
 
     print(f"Episode {episode}, Total reward: {total_reward}, Epsilon: {epsilon:.3f}, no. of mouses: {no_of_mouse}, no.of steps survived:  {no_steps_alive[-1]}, steps_so_far: {step_count}, time elapsed: {(time.time()-start)/60.0:.2f} mins")
 
@@ -936,7 +946,7 @@ plot_rewards(q_max_vals,'qmax values at different states')
 
 if Train:
 
-    torch.save(q_net.state_dict(), "q_net_cnn_mdash8.pth")
+    torch.save(q_net.state_dict(), "q_net_cnn_mhash1.pth")
 
 print("brooo",len(frame_state))
 #print(frame_state[-1]/255.0)
